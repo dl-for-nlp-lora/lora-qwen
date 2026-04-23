@@ -1,0 +1,9 @@
+name: "A-base"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules: null
+rank: 16
+alpha: 32
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "peft"

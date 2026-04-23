@@ -1,0 +1,11 @@
+name: "B-attention-only"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules:
+  - q_proj
+  - v_proj
+rank: 16
+alpha: 32
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "peft"

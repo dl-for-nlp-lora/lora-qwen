@@ -1,0 +1,12 @@
+max_steps: 30
+num_epochs: 1
+warmup_ratio: 0.03
+learning_rate: 2.0e-4
+weight_decay: 0.0
+max_grad_norm: 1.0
+lr_schedule: "cosine"
+per_device_batch_size: 1
+grad_accum_steps: 2
+autocast_dtype: "bfloat16"
+log_every: 5
+seed: 0

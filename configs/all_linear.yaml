@@ -1,0 +1,16 @@
+name: "C-all-linear"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+rank: 16
+alpha: 32
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "peft"

@@ -42,6 +42,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 from lora_qwen.config import LoraSetupConfig
@@ -79,12 +80,34 @@ class LoRALayer(nn.Module):
         dropout: float,
     ) -> None:
         super().__init__()
-        # TODO(group): parameters A, B; dropout module; scale factor.
-        raise NotImplementedError("LoRALayer.__init__")
+        self.rank = rank
+        self.alpha = alpha
+        # Scaling as per paper
+        self.scaling = alpha/rank
+        
+        # Matrix A: dims (r x in)
+        self.lora_A = nn.Parameter(torch.empty((rank, in_features)))
+        # Matrix B: dims (out x r)
+        self.lora_B = nn.Parameter(torch.empty((out_features, rank)))
+        self.dropout = nn.Dropout(p=dropout)
+        self.reset_parameters()
+        
+    def reset_parameters(self) -> None:
+        # Initialise A with Kaiming-uniform (with a=5**0.5)
+        nn.init.kaiming_uniform_(self.lora_A, a=5**0.5)
+        # Initialise B with zeros
+        nn.init.zeros_(self.lora_B)
+
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # TODO(group): return (alpha / rank) * B(A(dropout(x)))
-        raise NotImplementedError("LoRALayer.forward")
+        # Applying dropout to input
+        x = self.dropout(x)
+        # Projecting down: x @ lora_A.T - resulting shape (batch, rank)
+        after_A = F.linear(x, self.lora_A)
+        # Projecting back up: after_A @ lora_B.T - resulting shape (batch, out_features)
+        after_B = F.linear(after_A, self.lora_B)
+        # Apply scaling factor (alpha / r)
+        return after_B * self.scaling
 
 
 class LinearWithLoRA(nn.Module):
@@ -95,13 +118,25 @@ class LinearWithLoRA(nn.Module):
 
     def __init__(self, base: nn.Linear, *, rank: int, alpha: float, dropout: float) -> None:
         super().__init__()
-        # TODO(group): store frozen base, construct LoRALayer with matching
-        # in_features / out_features.
-        raise NotImplementedError("LinearWithLoRA.__init__")
+        # Store original layer
+        self.base = base
+        
+        # Freeze params of original layer
+        for param in self.base.parameters():
+            param.requires_grad = False
+            
+        # Create parallel LoRA path
+        self.lora = LoRALayer(
+            in_features=base.in_features,
+            out_features=base.out_features,
+            rank=rank,
+            alpha=alpha,
+            dropout=dropout
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # TODO(group): base(x) + lora(x)
-        raise NotImplementedError("LinearWithLoRA.forward")
+        # Combine frozen input with trained delta
+        return self.base(x) + self.lora(x)
 
 
 def apply(model: nn.Module, config: LoraSetupConfig) -> nn.Module:

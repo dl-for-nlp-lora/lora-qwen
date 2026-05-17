@@ -86,9 +86,13 @@ class LoRALayer(nn.Module):
         self.scaling = alpha/rank
         
         # Matrix A: dims (r x in)
-        self.lora_A = nn.Parameter(torch.empty((rank, in_features)))
+        self.lora_A = nn.Parameter(
+            torch.empty((rank, in_features), dtype=torch.bfloat16)
+            )
         # Matrix B: dims (out x r)
-        self.lora_B = nn.Parameter(torch.empty((out_features, rank)))
+        self.lora_B = nn.Parameter(
+            torch.empty((out_features, rank), dtype=torch.bfloat16)
+            )
         self.dropout = nn.Dropout(p=dropout)
         self.reset_parameters()
         
@@ -151,19 +155,57 @@ def apply(model: nn.Module, config: LoraSetupConfig) -> nn.Module:
     Hint: use ``model.get_submodule(parent)`` + ``setattr`` to replace a
     named submodule.
     """
-    # TODO(group): implement the patching walk.
-    raise NotImplementedError("custom_backend.apply")
+    model.requires_grad_(False)
+    for name, module in list(model.named_modules()):
+        if isinstance(module, nn.Linear):
+            leaf_name = name.split(".")[-1]
+            if leaf_name in config.target_modules:
+                name_parts = name.split(".")
+                parent_path = ".".join(name_parts[:-1])
+                child_name = name_parts[-1]
+                
+                parent = model.get_submodule(parent_path)
+                new_wrapper = LinearWithLoRA(
+                    module,
+                    rank=config.rank,
+                    alpha=config.alpha,
+                    dropout=config.dropout
+                )
+                
+                setattr(parent, child_name, new_wrapper)
+    return model
 
 
 def save(model: nn.Module, save_dir: str | Path) -> None:
     """Dump only trainable tensors (LoRA A and B) as a plain ``state_dict``."""
-    # TODO(group): build a dict of the `requires_grad=True` params, save with
+    # Build a dict of the `requires_grad=True` params, save with
     # ``torch.save`` or ``safetensors.save_file`` to ``save_dir/adapter.pt``.
-    raise NotImplementedError("custom_backend.save")
+    save_path = Path(save_dir)
+    save_path.mkdir(parents=True, exist_ok=True)
+    
+    # Extract only params that we trained (A and B)
+    # Identified by requires_grad=True
+    lora_state_dict = {
+        k: v for k, v in model.state_dict().items()
+        if "lora_" in k
+    }
+    
+    torch.save(lora_state_dict, save_path / "adapter.pt")
 
 
 def load(base_model: nn.Module, save_dir: str | Path, config: LoraSetupConfig) -> nn.Module:
     """Re-apply LoRA structure + load saved adapter tensors."""
-    # TODO(group): call apply(base_model, config), then torch.load the
+    # call apply(base_model, config), then torch.load the
     # adapter file and `load_state_dict(..., strict=False)` onto the model.
-    raise NotImplementedError("custom_backend.load")
+    
+    # Re-apply LoRA structure to get lora_A and lora_B params
+    model = apply(base_model, config)
+    
+    # Load saved tensors
+    adapter_path = Path(save_dir) / "adapter.pt"
+    state_dict = torch.load(adapter_path, map_location="cpu", weights_only=True)
+    
+    # Load into model (strict=False as we only have LoRA weights)
+    model.load_state_dict(state_dict, strict=False)
+    
+    return model

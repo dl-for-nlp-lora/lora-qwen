@@ -78,30 +78,40 @@ class LoRALayer(nn.Module):
         rank: int,
         alpha: float,
         dropout: float,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> None:
         super().__init__()
         self.rank = rank
         self.alpha = alpha
         # Scaling as per paper
-        self.scaling = alpha/rank
-        
+        self.scaling = alpha / rank
+
+        # device + dtype are taken from the wrapped Linear (see LinearWithLoRA),
+        # so A and B live on the same device as the rest of the model.
+
         # Matrix A: dims (r x in)
         self.lora_A = nn.Parameter(
-            torch.empty((rank, in_features), dtype=torch.bfloat16)
-            )
+            torch.empty((rank, in_features), device=device, dtype=dtype)
+        )
         # Matrix B: dims (out x r)
         self.lora_B = nn.Parameter(
-            torch.empty((out_features, rank), dtype=torch.bfloat16)
-            )
+            torch.empty((out_features, rank), device=device, dtype=dtype)
+        )
         self.dropout = nn.Dropout(p=dropout)
         self.reset_parameters()
-        
-    def reset_parameters(self) -> None:
-        # Initialise A with Kaiming-uniform (with a=5**0.5)
-        nn.init.kaiming_uniform_(self.lora_A, a=5**0.5)
-        # Initialise B with zeros
-        nn.init.zeros_(self.lora_B)
 
+    def reset_parameters(self) -> None:
+        # Kaiming-uniform on A, zeros on B (so BA = 0 at init).
+        # Low-precision dtypes like bf16 only have ~256 representable values in
+        # this range; sampling directly into them throws away useful entropy.
+        # We draw in fp32 and copy_ into the param's own storage to keep the
+        # dtype/device the param was allocated with.
+        a_fp32 = torch.empty_like(self.lora_A, dtype=torch.float32)
+        nn.init.kaiming_uniform_(a_fp32, a=5**0.5)
+        with torch.no_grad():
+            self.lora_A.copy_(a_fp32)
+            self.lora_B.zero_()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Applying dropout to input
@@ -122,20 +132,20 @@ class LinearWithLoRA(nn.Module):
 
     def __init__(self, base: nn.Linear, *, rank: int, alpha: float, dropout: float) -> None:
         super().__init__()
-        # Store original layer
         self.base = base
-        
-        # Freeze params of original layer
         for param in self.base.parameters():
             param.requires_grad = False
-            
-        # Create parallel LoRA path
+
+        # Place LoRA on the same device + dtype as the wrapped Linear so the
+        # forward pass never sees mixed-device / mixed-dtype tensors.
         self.lora = LoRALayer(
             in_features=base.in_features,
             out_features=base.out_features,
             rank=rank,
             alpha=alpha,
-            dropout=dropout
+            dropout=dropout,
+            device=base.weight.device,
+            dtype=base.weight.dtype,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -178,18 +188,15 @@ def apply(model: nn.Module, config: LoraSetupConfig) -> nn.Module:
 
 def save(model: nn.Module, save_dir: str | Path) -> None:
     """Dump only trainable tensors (LoRA A and B) as a plain ``state_dict``."""
-    # Build a dict of the `requires_grad=True` params, save with
-    # ``torch.save`` or ``safetensors.save_file`` to ``save_dir/adapter.pt``.
     save_path = Path(save_dir)
     save_path.mkdir(parents=True, exist_ok=True)
-    
-    # Extract only params that we trained (A and B)
-    # Identified by requires_grad=True
-    lora_state_dict = {
-        k: v for k, v in model.state_dict().items()
-        if "lora_" in k
-    }
-    
+
+    # Filter via requires_grad rather than a name pattern: requires_grad is the
+    # semantic definition of "this is what we trained", and survives any future
+    # rename of the LoRA parameters.
+    trainable_names = {n for n, p in model.named_parameters() if p.requires_grad}
+    lora_state_dict = {k: v for k, v in model.state_dict().items() if k in trainable_names}
+
     torch.save(lora_state_dict, save_path / "adapter.pt")
 
 

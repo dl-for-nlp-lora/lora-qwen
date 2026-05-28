@@ -43,6 +43,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-problems", type=int, default=30)
     p.add_argument("--max-new-tokens", type=int, default=256)
     p.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help=(
+            "Generation batch size. Default is hardware-aware: 16 on CUDA "
+            "(safe on T4 16GB; A40 48GB / A100 can comfortably run 32-64), "
+            "1 on MPS / CPU. Larger batches give near-linear speedups until "
+            "you hit VRAM."
+        ),
+    )
+    p.add_argument(
         "--output",
         type=Path,
         default=REPO_ROOT / "results" / "gsm8k_base_vs_ft.json",
@@ -97,6 +108,7 @@ def main() -> int:
         name="base",
         max_new_tokens=args.max_new_tokens,
         device=device,
+        batch_size=args.batch_size,
     )
     print("  " + base_res.summary() + f"  | {base_res.wall_time_sec:.1f}s")
 
@@ -124,6 +136,7 @@ def main() -> int:
         name="ft",
         max_new_tokens=args.max_new_tokens,
         device=device,
+        batch_size=args.batch_size,
     )
     print("  " + ft_res.summary() + f"  | {ft_res.wall_time_sec:.1f}s")
 
@@ -143,6 +156,7 @@ def main() -> int:
         "device": str(device),
         "num_problems": len(problems),
         "max_new_tokens": args.max_new_tokens,
+        "batch_size": args.batch_size,
         "base": _summary_dict(base_res, save_completions=save_compl),
         "ft": _summary_dict(ft_res, save_completions=save_compl),
         "delta_accuracy": delta,

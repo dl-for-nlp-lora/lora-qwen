@@ -23,6 +23,17 @@ python scripts/eval_gsm8k.py --num-problems 30
 
 First run downloads ~3.4 GB of model weights into the HuggingFace cache.
 
+### GPU evaluation
+
+`eval_gsm8k.py` batches generation. The default batch size is hardware-aware (`16` on CUDA, `1` on MPS/CPU). On a 16 GB T4 the default is safe; on an A40 (48 GB) or A100 you can push it higher:
+
+```bash
+python scripts/eval_gsm8k.py --num-problems 1319 --batch-size 32   # A40
+python scripts/eval_gsm8k.py --num-problems 1319 --batch-size 64   # A100 80G
+```
+
+Generation is the wall-time bottleneck of the whole pipeline (autoregressive, 1 forward per token), so the batch size is the main knob for eval throughput. If you OOM, halve it.
+
 ## Experimental conditions
 
 | Config | Target modules                                               | File                              |

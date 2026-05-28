@@ -1,4 +1,4 @@
-name: "C-all-linear"
+name: "E1e_all_linear"
 model_name: "Qwen/Qwen3-1.7B-Base"
 target_modules:
   - q_proj
@@ -13,4 +13,4 @@ alpha: 4
 dropout: 0.05
 dtype: "bfloat16"
 device: "auto"
-backend: "peft"
+backend: "custom"

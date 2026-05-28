@@ -1,4 +1,4 @@
-name: "C-all-linear"
+name: "E0b_full_ft"
 model_name: "Qwen/Qwen3-1.7B-Base"
 target_modules:
   - q_proj
@@ -9,7 +9,7 @@ target_modules:
   - up_proj
   - down_proj
 rank: 2
-alpha: 4
+alpha: 32
 dropout: 0.05
 dtype: "bfloat16"
 device: "auto"

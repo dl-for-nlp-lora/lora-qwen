@@ -1,0 +1,5 @@
+name: "metamath"
+dataset: "metamath"           # registry key
+split: "train"
+max_examples: 30000            # subsample for setup / smoke runs; raise to 10000+ for real FT
+max_length: 512

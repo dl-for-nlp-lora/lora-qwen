@@ -43,25 +43,32 @@ Downstream task: **MetaMathQA → GSM8K**.
 - Single seed.
 
 **E1 — Which weight matrices? (paper §7.1, Tab. 5)**
-Fixed param budget ≈18M (same target as paper). Vary which leaf modules receive LoRA, choose `r` per config so total trainable params stay ≈18M.
+Fixed param budget (same *intent* as the paper). Vary which leaf modules receive LoRA, choose `r` per config so total trainable params stay constant. α fixed to `2·r` throughout.
+
+Budget target: **≈1.61M trainable params** (28 layers). Note this is *not* the paper's 18M figure — that was sized for GPT-3 (175B). For Qwen3-1.7B a comparable adaptation lands in the low single-digit millions; the absolute number is irrelevant, only that it is held constant across configs.
+
+LoRA params for a target set are `L · r · Σ(in+out)`. Because Qwen3 uses **GQA** (`k_proj`/`v_proj` out_features=1024 vs `q_proj`=2048), a naive "keep `r·#targets` constant" rule does **not** equalize the budget — `r` must be solved per config from the actual matrix dims.
+
+| Config | Targets                          | r   | α   | Trainable | vs budget |
+| ------ | -------------------------------- | --- | --- | --------- | --------- |
+| E1a    | `q_proj`                         | 14  | 28  | 1.61M     | +0.0%     |
+| E1b    | `v_proj`                         | 19  | 38  | 1.63M     | +1.8%     |
+| E1c    | `q_proj, v_proj`                 | 8   | 16  | 1.61M     | +0.0%     |
+| E1d    | `q_proj, k_proj, v_proj, o_proj` | 4   | 8   | 1.61M     | +0.0%     |
+| E1e    | all attention + MLP (all-linear) | 2   | 4   | 2.18M     | +35.7%    |
 
 
-| Config | Targets                          | r   |
-| ------ | -------------------------------- | --- |
-| E1a    | `q_proj`                         | 16  |
-| E1b    | `v_proj`                         | 16  |
-| E1c    | `q_proj, v_proj`                 | 8   |
-| E1d    | `q_proj, k_proj, v_proj, o_proj` | 4   |
-| E1e    | all attention + MLP (all-linear) | 2   |
+> E1e is a *deviation* from the paper, which froze MLP layers (§4.2). In modern decoder LMs the MLP is the bulk of the parameters (gate/up/down ≈ 2/3 of trainable matmuls); whether adapting it helps is an open question worth a single data point. It is also **off-budget**: the all-linear target set is ~12× larger than `q_proj` alone, so the smallest integer rank (`r=2`) already overshoots the budget by ~36%. We keep `r=2` (the LoRA floor) and read E1e as a qualitative "does MLP adaptation help at all" point, **not** as an iso-budget row. The iso-budget comparison proper is E1a–E1d.
 
-
-> E1e is a *deviation* from the paper, which froze MLP layers (§4.2). In modern decoder LMs the MLP is the bulk of the parameters (gate/up/down ≈ 2/3 of trainable matmuls); whether adapting it helps is an open question worth a single data point.
+> **Single-seed caveat.** With one seed and n=1319, the binomial SE at acc≈0.70 is ≈0.013 (≈17 problems). Differences between E1 configs smaller than ~2 SE (≈0.026) are not distinguishable from noise — treat the E1 ranking as indicative, not conclusive.
 
 Metric: GSM8K accuracy. Output: replicate Tab. 5 layout for Qwen3.
 
 **E2 — Optimal rank? (paper §7.2, Tab. 6 / App. Tab. 18)**
-Best target set from E1 (likely `q_proj, v_proj`). Sweep `r ∈ {1, 2, 4, 8, 16, 64}`. α fixed to `2·r` per paper convention.
+Best **iso-budget** target set from E1a–E1d (the paper sweeps rank on the attention set; `q_proj, v_proj` is the canonical choice). Sweep `r ∈ {1, 2, 4, 8, 16, 64}`. α fixed to `2·r` per paper convention.
 Output: rank-vs-accuracy curve, recreate Fig. 2 / Tab. 6 layout.
+
+> Pick the E2 target set from E1a–E1d, **not** E1e: E1e is off-budget (see above), so its accuracy is not comparable. Sweeping rank on all-linear is a separate, optional extension (E1e-deep), not the §7.2 reproduction.
 
 **E3 — Subspace analyses (paper §7.2 bottom / §7.3)**
 Post-hoc on E2's checkpoints, no extra training compute.
@@ -84,4 +91,5 @@ Per run: `results/<exp_id>/summary.json` (config + final accuracy + loss curve),
 - Seed fixed in `configs/train/*.yaml`.
 - bf16 throughout (matches what current LoRA work reports). Run E0b (full FT) in bf16 as well for an apples-to-apples comparison.
 - GSM8K eval is greedy (`do_sample=False`); paper §5.4 uses beam search for NLG, but for math accuracy with `####` extraction greedy is the convention and removes one source of variance.
+- Pin `--batch-size` to the **same value** for every run in a comparison. Batched generation changes padding, and bf16 matmuls are not bit-exact across padding layouts, so the greedy path can diverge between an unbatched and a batched run even on the identical model. (Observed in the first E1 sweep: E1a was run with a different batch size than E1b–E1e, which is why their *base* completions were not byte-identical despite identical accuracy.)
 

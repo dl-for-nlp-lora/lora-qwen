@@ -28,7 +28,10 @@ from lora_qwen.evaluation import (  # noqa: E402
     load_gsm8k,
 )
 from lora_qwen.lora import load_adapter  # noqa: E402
-from lora_qwen.model import load_model_and_tokenizer  # noqa: E402
+from lora_qwen.model import (  # noqa: E402
+    load_model_and_tokenizer,
+    lora_budget_report,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -102,6 +105,11 @@ def main() -> int:
     print(f"\n[2/5] Loading base model ({lora_cfg.model_name})...")
     base_model, tokenizer, device = load_model_and_tokenizer(lora_cfg)
 
+    # Derive the *actual* LoRA budget from the real model dims (GQA-correct) and
+    # surface it up front, so the run's defining knobs are never hidden in YAML.
+    budget = lora_budget_report(base_model, lora_cfg)
+    print(budget.render(prefix="      "))
+
     print(f"[3/5] Scoring base on {device}:")
     base_res = evaluate_gsm8k(
         base_model, tokenizer, problems,
@@ -130,6 +138,19 @@ def main() -> int:
     ft_model.to(device)
     ft_model.eval()
 
+    # Cross-check: the params we actually unfroze must match what the budget
+    # report predicted. A mismatch means a target name never matched, a backend
+    # mis-apply, or a config that doesn't describe this checkpoint — fail loud
+    # rather than silently report an experiment that wasn't run.
+    actual_trainable = sum(p.numel() for p in ft_model.parameters() if p.requires_grad)
+    if actual_trainable != budget.expected_trainable:
+        raise SystemExit(
+            "Trainable-param mismatch: config/report expects "
+            f"{budget.expected_trainable:,} but the attached adapter has "
+            f"{actual_trainable:,}. The config does not match this checkpoint."
+        )
+    print(f"      budget check OK: {actual_trainable:,} trainable params")
+
     print(f"[5/5] Scoring FT on {device}:")
     ft_res = evaluate_gsm8k(
         ft_model, tokenizer, problems,
@@ -157,6 +178,7 @@ def main() -> int:
         "num_problems": len(problems),
         "max_new_tokens": args.max_new_tokens,
         "batch_size": args.batch_size,
+        "lora": {**budget.to_dict(), "actual_trainable_params": actual_trainable},
         "base": _summary_dict(base_res, save_completions=save_compl),
         "ft": _summary_dict(ft_res, save_completions=save_compl),
         "delta_accuracy": delta,

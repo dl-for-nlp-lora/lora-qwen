@@ -91,5 +91,6 @@ Per run: `results/<exp_id>/summary.json` (config + final accuracy + loss curve),
 - Seed fixed in `configs/train/*.yaml`.
 - bf16 throughout (matches what current LoRA work reports). Run E0b (full FT) in bf16 as well for an apples-to-apples comparison.
 - GSM8K eval is greedy (`do_sample=False`); paper §5.4 uses beam search for NLG, but for math accuracy with `####` extraction greedy is the convention and removes one source of variance.
+- Every config sets `rank`/`alpha`/`target_modules` **explicitly** — nothing is auto-solved. At run time the eval/smoke scripts print and persist a **LoRA budget report** (`rank`, `alpha`, scaling, matched modules, and the actual trainable-param count derived from the real model dims), and eval hard-fails if the params it unfroze don't match that report. So the defining knobs of each run live in the result JSON (`lora` block), not only in a YAML you have to go find.
 - Pin `--batch-size` to the **same value** for every run in a comparison. Batched generation changes padding, and bf16 matmuls are not bit-exact across padding layouts, so the greedy path can diverge between an unbatched and a batched run even on the identical model. (Observed in the first E1 sweep: E1a was run with a different batch size than E1b–E1e, which is why their *base* completions were not byte-identical despite identical accuracy.)
 

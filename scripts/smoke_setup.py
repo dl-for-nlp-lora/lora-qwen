@@ -30,6 +30,7 @@ from lora_qwen.config import LoraSetupConfig  # noqa: E402
 from lora_qwen.lora import apply_lora  # noqa: E402
 from lora_qwen.model import (  # noqa: E402
     load_model_and_tokenizer,
+    lora_budget_report,
     print_trainable_params,
     summarize_linear_modules,
 )
@@ -38,7 +39,6 @@ from lora_qwen.sanity import (  # noqa: E402
     capture_logits,
     compare_logits,
 )
-
 
 SMOKE_PROMPT = "The capital of France is"
 
@@ -101,6 +101,9 @@ def main() -> int:
     print(f"      -> device={device}, param dtype={next(model.parameters()).dtype}")
 
     _print_linear_summary(model)
+
+    if config.target_modules is not None:
+        print(lora_budget_report(model, config).render(prefix="      "))
 
     do_identity = (not args.skip_identity) and config.target_modules is not None
     base_logits = None

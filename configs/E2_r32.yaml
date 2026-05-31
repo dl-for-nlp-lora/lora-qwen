@@ -1,0 +1,16 @@
+name: "E2_rank_32"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+rank: 32
+alpha: 64
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "custom"

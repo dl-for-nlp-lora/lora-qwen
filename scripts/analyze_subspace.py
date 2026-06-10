@@ -50,15 +50,19 @@ def load_adapter_weights(checkpoint_dir: Path) -> dict[str, torch.Tensor]:
     if not adapter_path.exists():
         raise FileNotFoundError(f"Adapter not found at {adapter_path}")
     state_dict = torch.load(adapter_path, map_location="cpu", weights_only=True)
-    return state_dict
+    # Convert BFloat16/Float16 to Float32 for scipy compatibility
+    return {k: v.float() for k, v in state_dict.items()}
 
 
 def load_base_model_weights(model_name: str):
     """Load base model weights for amplification factor analysis."""
     from transformers import AutoModelForCausalLM
-
     print(f"Loading base model '{model_name}' (this may take a minute)...")
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float32)
+    # Load in float32 for analysis compatibility
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, 
+        torch_dtype=torch.float32
+    )
     return model
 
 
@@ -293,6 +297,10 @@ def analyze_grassmann(
         else:
             rep_matrix = similarity_matrix
             layer_names = [f"L{l}" for l in layer_indices]
+
+        if len(module_types) > 1:
+            # Insert module_type into filename
+            output_path = output_path.parent / f"{output_path.stem}_{module_type}{output_path.suffix}"
 
         # Plot heatmap
         plot_grassmann_heatmap(rep_matrix, layer_names, module_type, output_path)

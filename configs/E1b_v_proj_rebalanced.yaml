@@ -1,15 +1,9 @@
-name: "E2_r64_full_linear"
+name: "E1b_v_proj_rebalanced"
 model_name: "Qwen/Qwen3-1.7B-Base"
 target_modules:
-  - q_proj
-  - k_proj
   - v_proj
-  - o_proj
-  - gate_proj
-  - up_proj
-  - down_proj
-rank: 64
-alpha: 128
+rank: 25
+alpha: 50
 dropout: 0.05
 dtype: "bfloat16"
 device: "auto"

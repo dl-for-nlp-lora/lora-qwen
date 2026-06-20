@@ -1,0 +1,11 @@
+name: "E4.4m_qv_proj"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules:
+  - q_proj
+  - v_proj
+rank: 22
+alpha: 44
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "custom"

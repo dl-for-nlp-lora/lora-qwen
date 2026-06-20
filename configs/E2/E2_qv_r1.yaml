@@ -1,9 +1,10 @@
-name: "E1a_q_proj"
+name: "E2_qv_rank_1"
 model_name: "Qwen/Qwen3-1.7B-Base"
 target_modules:
   - q_proj
-rank: 45
-alpha: 90
+  - v_proj
+rank: 1
+alpha: 2
 dropout: 0.05
 dtype: "bfloat16"
 device: "auto"

@@ -1,0 +1,15 @@
+# Full GSM8K-train fine-tuning recipe. Epoch count and LR are the sweepable
+# knobs (override via train_lora.py --num-epochs / --learning-rate); the values
+# here are the post-sweep defaults to be fixed once Stage 1/2 finish.
+max_steps: null
+num_epochs: 3
+warmup_ratio: 0.03
+learning_rate: 2.0e-4
+weight_decay: 0.0
+max_grad_norm: 1.0
+lr_schedule: "cosine"
+per_device_batch_size: 4   # eff batch = 8, fits a 24GB RTX 4090 at seq 512
+grad_accum_steps: 2
+autocast_dtype: "bfloat16"
+log_every: 25
+seed: 0

@@ -29,7 +29,7 @@ from lora_qwen.data.registry import (
 )
 
 # Importing concrete datasets triggers their @register() side-effect.
-from lora_qwen.data import metamath  # noqa: F401
+from lora_qwen.data import gsm8k_train, metamath  # noqa: F401
 
 __all__ = [
     "DataConfig",

@@ -1,0 +1,13 @@
+# Full fine-tuning recipe — smaller micro-batch to fit AdamW states on 24GB.
+max_steps: null
+num_epochs: 3
+warmup_ratio: 0.03
+learning_rate: 2.0e-4
+weight_decay: 0.0
+max_grad_norm: 1.0
+lr_schedule: "cosine"
+per_device_batch_size: 1
+grad_accum_steps: 8
+autocast_dtype: "bfloat16"
+log_every: 25
+seed: 0

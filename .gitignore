@@ -32,5 +32,20 @@ checkpoints/
 *.jsonl
 wandb/
 
+# Local experiment drivers (pod/stage automation)
+scripts/stage*.sh
+scripts/pod_*.sh
+scripts/_*.sh
+scripts/beat_baseline.sh
+scripts/diff_base_ft.py
+scripts/assemble_stage3.py
+scripts/plot_stage3.py
+
+# Scratch / internal result trees (published copies live under results/)
+results_v2/
+results_v4/
+results_v5/
+results_reeval/
+
 # Keep results directory tracked but ignore large per-example dumps.
 # (smoke results are small enough to commit)

@@ -11,6 +11,7 @@ heuristic.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import torch
@@ -117,12 +118,17 @@ def evaluate_gsm8k(
     device: torch.device | None = None,
     batch_size: int | None = None,
     verbose_every: int = 10,
+    prompt_fn: Callable[[str], str] = format_prompt,
 ) -> EvalResult:
     """Score ``problems`` and return an :class:`EvalResult`.
 
     ``batch_size`` defaults to a hardware-appropriate value via
     :func:`_default_batch_size`. Override it explicitly when you know
     your VRAM budget.
+
+    ``prompt_fn`` builds the prompt from a question; defaults to the zero-shot
+    training prefix. Pass ``format_prompt_fewshot`` or ``format_prompt_instruct``
+    to evaluate under a different prompt style.
     """
     device = device or next(model.parameters()).device
     if batch_size is None:
@@ -139,7 +145,7 @@ def evaluate_gsm8k(
     try:
         for batch_start in range(0, len(problems), batch_size):
             batch = problems[batch_start : batch_start + batch_size]
-            prompts = [format_prompt(p.question) for p in batch]
+            prompts = [prompt_fn(p.question) for p in batch]
             completions = _generate_completions_batched(
                 model, tokenizer, prompts,
                 max_new_tokens=max_new_tokens, device=device,

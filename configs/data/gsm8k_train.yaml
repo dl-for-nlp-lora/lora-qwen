@@ -1,0 +1,5 @@
+name: "gsm8k_train"
+dataset: "gsm8k_train"        # registry key
+split: "train"                # holds out a fixed dev slice (see gsm8k_train.py)
+max_examples: null            # use all of GSM8K-train (minus the dev slice)
+max_length: 512

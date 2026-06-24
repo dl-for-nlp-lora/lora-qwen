@@ -1,0 +1,10 @@
+name: "E_instruct_q_r1"
+model_name: "Qwen/Qwen3-1.7B-Base"
+target_modules:
+  - q_proj
+rank: 1
+alpha: 2
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "custom"

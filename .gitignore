@@ -47,5 +47,9 @@ results_v4/
 results_v5/
 results_reeval/
 
+# Shared checkpoint bundles (too large for git)
+checkpoints-export/
+*.zip
+
 # Keep results directory tracked but ignore large per-example dumps.
 # (smoke results are small enough to commit)

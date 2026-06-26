@@ -1,0 +1,102 @@
+{
+  "model_config": "configs/qwen2_1.5b/base.yaml",
+  "data_config": "configs/data/gsm8k_train.yaml",
+  "train_config": "configs/train/full.yaml",
+  "save_dir": "/workspace/lora-qwen/checkpoints/headroom/qwen2_1.5b/full_ft",
+  "model_name": "Qwen/Qwen2-1.5B",
+  "mode": "full_ft",
+  "device": "cuda",
+  "transformers_version": "5.12.1",
+  "dataset": "gsm8k_train",
+  "data_split": "train",
+  "max_examples": null,
+  "train_prompt": "instruct",
+  "max_length": 1024,
+  "optimizer": "sgd",
+  "train": {
+    "num_epochs": 1,
+    "learning_rate": 0.0002,
+    "lr_schedule": "cosine",
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "per_device_batch_size": 4,
+    "grad_accum_steps": 2,
+    "seed": 0
+  },
+  "trainable_params": 1543714304,
+  "total_params": 1543714304,
+  "steps_done": 809,
+  "wall_time_sec": 465.87321732900455,
+  "final_loss": 0.29191160533163285,
+  "loss_curve": [
+    [
+      50,
+      0.5611982607841491
+    ],
+    [
+      100,
+      0.3480903325974941
+    ],
+    [
+      150,
+      0.31281579852104185
+    ],
+    [
+      200,
+      0.28021401196718215
+    ],
+    [
+      250,
+      0.29625099658966064
+    ],
+    [
+      300,
+      0.28253866255283355
+    ],
+    [
+      350,
+      0.3108302243053913
+    ],
+    [
+      400,
+      0.2785779081285
+    ],
+    [
+      450,
+      0.2845145970582962
+    ],
+    [
+      500,
+      0.2844940464198589
+    ],
+    [
+      550,
+      0.2673986438661814
+    ],
+    [
+      600,
+      0.2711040100455284
+    ],
+    [
+      650,
+      0.29298302248120306
+    ],
+    [
+      700,
+      0.29251174211502073
+    ],
+    [
+      750,
+      0.2925307920575142
+    ],
+    [
+      800,
+      0.27363324150443075
+    ],
+    [
+      809,
+      0.29191160533163285
+    ]
+  ],
+  "dev_curve": []
+}

@@ -1,0 +1,45 @@
+{
+  "model_name": "Qwen/Qwen2-1.5B",
+  "split": "test",
+  "num_problems": 1319,
+  "max_new_tokens": 512,
+  "batch_size": 64,
+  "runs": {
+    "zeroshot": {
+      "prompt": "zeroshot",
+      "max_new_tokens": 512,
+      "accuracy": 0.48142532221379836,
+      "correct": 635,
+      "total": 1319,
+      "wall_time_sec": 280.82791889800865,
+      "truncated": 20,
+      "truncated_frac": 0.015163002274450341,
+      "truncated_correct": 0,
+      "accuracy_excl_truncated": 0.4888375673595073
+    },
+    "fewshot": {
+      "prompt": "fewshot",
+      "max_new_tokens": 512,
+      "accuracy": 0.5602729340409401,
+      "correct": 739,
+      "total": 1319,
+      "wall_time_sec": 468.79914618100156,
+      "truncated": 1318,
+      "truncated_frac": 0.9992418498862775,
+      "truncated_correct": 738,
+      "accuracy_excl_truncated": 1.0
+    },
+    "instruct": {
+      "prompt": "instruct",
+      "max_new_tokens": 512,
+      "accuracy": 0.21910538286580744,
+      "correct": 289,
+      "total": 1319,
+      "wall_time_sec": 263.7740982510004,
+      "truncated": 9,
+      "truncated_frac": 0.006823351023502654,
+      "truncated_correct": 0,
+      "accuracy_excl_truncated": 0.22061068702290076
+    }
+  }
+}

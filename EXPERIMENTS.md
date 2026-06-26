@@ -77,6 +77,43 @@ Post-hoc on E2's checkpoints, no extra training compute.
 - E3b Two-seed `r=64` run → cross-seed subspace similarity (Fig. 4 layout). Adds **one** extra training run.
 - E3c Amplification factor `‖ΔW‖_F / ‖U^⊤W V^⊤‖_F` for `r ∈ {4, 64}` (Tab. 7 layout).
 
+**E4 — Headroom: when does LoRA help? (our own question)**
+A controlled experiment isolating *one* factor: how much the base model already
+masters the task. We pick two backbones that are identical in size and
+architecture (1.5B, 28 layers, 12 Q / 2 KV heads, hidden 1536, GQA) and differ
+**only** in pretraining math level:
+
+| Backbone | base GSM8K-test (instruct @512) |
+| -------- | ------------------------------- |
+| Qwen2-1.5B   | 0.219 (weak — answers in code style, ignores `#### N`) |
+| Qwen2.5-1.5B | 0.557 (strong — already follows the format) |
+
+Data: GSM8K-train → GSM8K-test (in-distribution; the training answer format
+`#### N` matches the eval format, no MetaMath mismatch). All runs use a **fixed
+512-token budget** (self-terminating instruct/FT stop on EOS earlier; the cap
+only binds for few-shot). A held-out 1000-example slice of GSM8K-**train** is the
+dev set for the staged sweeps; GSM8K-test is reserved for the final numbers.
+
+Per model we run the same funnel, passing the best config to the next stage:
+epoch diagnostic → 3-point LR check → E1 target sweep (iso-budget ≈2.5M params,
+GQA-solved per target set) → E2 rank sweep → final test matrix
+(base 0-shot / few-shot / instruct + best LoRA + full FT).
+
+Result: the LoRA gain over base-instruct is **+0.321** for the weak Qwen2-1.5B
+but only **+0.031** for the strong Qwen2.5-1.5B — LoRA helps in proportion to the
+pretraining headroom. Full tables, per-stage figures, and the slide writeup are
+in [`analysis/headroom_summary.md`](analysis/headroom_summary.md); per-run JSONs
+under `results_headroom/<model>/`.
+
+> **Dev-metric caveat (contamination).** The dev slice is part of GSM8K-train,
+> which the Qwen models appear to have seen in pretraining: the *untrained*
+> Qwen2-1.5B base already scores **0.87 on dev-500 vs 0.25 on test-500** (same
+> prompt/budget, ~0% truncation, matched difficulty). This is pretraining
+> memorization of the train split, **not** a leakage bug — train/dev indices are
+> disjoint and 0/1000 dev items have a ≥0.8-similar train neighbor. Dev is used
+> only for *relative* within-model stage decisions (the offset cancels); every
+> headline number is on the clean GSM8K-test split.
+
 ### Seeds
 
 Single seed per config for E1/E2 (paper uses 3–5; we trade variance for coverage). One extra seed for the best-of-E2 row + one extra `r=64` run for E3b. Total: ~15 training runs.

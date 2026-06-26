@@ -1,0 +1,40 @@
+{
+  "prompt": "instruct",
+  "n": 500,
+  "cells": {
+    "base_dev": {
+      "accuracy": 0.868,
+      "correct": 434,
+      "total": 500,
+      "truncated": 1,
+      "truncated_frac": 0.002,
+      "mean_completion_chars": 581.11
+    },
+    "base_test": {
+      "accuracy": 0.25,
+      "correct": 125,
+      "total": 500,
+      "truncated": 4,
+      "truncated_frac": 0.008,
+      "mean_completion_chars": 608.394
+    },
+    "ft_dev": {
+      "accuracy": 0.826,
+      "correct": 413,
+      "total": 500,
+      "truncated": 2,
+      "truncated_frac": 0.004,
+      "mean_completion_chars": 309.432
+    },
+    "ft_test": {
+      "accuracy": 0.54,
+      "correct": 270,
+      "total": 500,
+      "truncated": 5,
+      "truncated_frac": 0.01,
+      "mean_completion_chars": 295.47
+    }
+  },
+  "base_gap_dev_minus_test": 0.618,
+  "ft_gap_dev_minus_test": 0.2859999999999999
+}

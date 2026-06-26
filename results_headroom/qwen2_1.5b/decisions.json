@@ -1,0 +1,42 @@
+{
+  "diag_epoch_curve": {
+    "1": 0.776,
+    "2": 0.778,
+    "3": 0.764
+  },
+  "diag_best_epoch": 2,
+  "epochs_used": 1,
+  "lr_scores": {
+    "2e-04": 0.802,
+    "4e-04": 0.778,
+    "8e-04": 0.788
+  },
+  "best_lr": "2e-04",
+  "e1_scores": {
+    "q": 0.792,
+    "v": 0.78,
+    "qv": 0.792,
+    "attention": 0.814,
+    "all_linear": 0.796
+  },
+  "best_target": "attention",
+  "e2_scores": {
+    "1": 0.826,
+    "2": 0.818,
+    "4": 0.802,
+    "8": 0.814,
+    "16": 0.81,
+    "32": 0.804,
+    "64": 0.778
+  },
+  "best_rank": 1,
+  "best_adapter": "/workspace/lora-qwen/checkpoints/headroom/qwen2_1.5b/e2_attention_r1",
+  "final_base_test": {
+    "zeroshot": 0.48142532221379836,
+    "fewshot": 0.5602729340409401,
+    "instruct": 0.21910538286580744
+  },
+  "final_lora_test": 0.5398028809704322,
+  "final_full_ft_test": 0.5170583775587566,
+  "wall_time_sec": 9508.5
+}

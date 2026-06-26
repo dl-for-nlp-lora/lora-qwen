@@ -43,9 +43,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--per-epoch-eval", action="store_true")
     p.add_argument("--dev-num-problems", type=int, default=1000)
     p.add_argument("--eval-batch-size", type=int, default=32)
-    p.add_argument("--max-new-tokens", type=int, default=256)
+    p.add_argument("--max-new-tokens", type=int, default=512)
     p.add_argument("--optimizer", choices=["adamw", "sgd"], default="sgd",
                    help="Optimizer for full FT. SGD fits 24GB at seq 1024; AdamW needs shorter seq.")
+    p.add_argument("--prune-epoch-checkpoints", action="store_true",
+                   help="Delete per-epoch checkpoint dirs after dev eval (saves disk).")
+    p.add_argument("--skip-final-save", action="store_true",
+                   help="Skip saving the final checkpoint at end of training.")
     return p.parse_args()
 
 
@@ -143,6 +147,10 @@ def main() -> int:
             })
             print(f"      [epoch {epoch}] dev acc={res.accuracy:.4f} "
                   f"({res.correct}/{res.total})")
+            if args.prune_epoch_checkpoints:
+                import shutil
+                shutil.rmtree(ckpt, ignore_errors=True)
+                print(f"      pruned checkpoint {ckpt}")
 
     print(f"[4/4] Training on {device}...")
     result = train(
@@ -151,9 +159,12 @@ def main() -> int:
     )
 
     args.save_dir.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(args.save_dir)
-    tokenizer.save_pretrained(args.save_dir)
-    print(f"\n  checkpoint saved: {args.save_dir}")
+    if not args.skip_final_save:
+        model.save_pretrained(args.save_dir)
+        tokenizer.save_pretrained(args.save_dir)
+        print(f"\n  checkpoint saved: {args.save_dir}")
+    else:
+        print(f"\n  skip-final-save: no checkpoint written to {args.save_dir}")
 
     first, last = result.loss_trend()
     if first is not None and last is not None:

@@ -30,6 +30,7 @@ class PerExample:
     gt: float
     predicted: float | None
     correct: bool
+    truncated: bool = False  # generation hit max_new_tokens without emitting EOS
 
 
 @dataclass
@@ -86,7 +87,17 @@ def _generate_completions_batched(
         # With left-padding every row has the same prompt-block width, so a
         # single slice gives clean continuations for the whole batch.
         gen_only = out_ids[:, enc["input_ids"].shape[1]:]
-        return tokenizer.batch_decode(gen_only, skip_special_tokens=True)
+        completions = tokenizer.batch_decode(gen_only, skip_special_tokens=True)
+        # A row is *truncated* if it produced max_new_tokens generated tokens
+        # without ever emitting EOS — i.e. it was cut off by the length cap,
+        # not stopped on its own. This is the unambiguous signal (independent
+        # of whether the answer format uses "#### N").
+        eos_id = tokenizer.eos_token_id
+        truncated = [
+            bool((row != eos_id).all().item()) and row.shape[0] >= max_new_tokens
+            for row in gen_only
+        ]
+        return completions, truncated
     finally:
         tokenizer.padding_side = original_side
 
@@ -114,7 +125,7 @@ def evaluate_gsm8k(
     problems: list[GSM8KProblem],
     *,
     name: str,
-    max_new_tokens: int = 256,
+    max_new_tokens: int = 512,
     device: torch.device | None = None,
     batch_size: int | None = None,
     verbose_every: int = 10,
@@ -146,12 +157,12 @@ def evaluate_gsm8k(
         for batch_start in range(0, len(problems), batch_size):
             batch = problems[batch_start : batch_start + batch_size]
             prompts = [prompt_fn(p.question) for p in batch]
-            completions = _generate_completions_batched(
+            completions, truncations = _generate_completions_batched(
                 model, tokenizer, prompts,
                 max_new_tokens=max_new_tokens, device=device,
             )
-            for offset, (problem, prompt, completion) in enumerate(
-                zip(batch, prompts, completions)
+            for offset, (problem, prompt, completion, was_truncated) in enumerate(
+                zip(batch, prompts, completions, truncations)
             ):
                 predicted = extract_number(completion)
                 is_correct = numbers_match(predicted, problem.answer_number)
@@ -162,6 +173,7 @@ def evaluate_gsm8k(
                     gt=problem.answer_number,
                     predicted=predicted,
                     correct=is_correct,
+                    truncated=was_truncated,
                 ))
                 result.total += 1
                 if is_correct:

@@ -55,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ft-prompt", choices=["zeroshot", "fewshot", "instruct"],
                    default="zeroshot",
                    help="Prompt for the FT pass (match training prompt for fair comparison).")
-    p.add_argument("--max-new-tokens", type=int, default=256)
+    p.add_argument("--max-new-tokens", type=int, default=512)
     p.add_argument(
         "--batch-size",
         type=int,
@@ -94,12 +94,22 @@ def parse_args() -> argparse.Namespace:
 
 
 def _summary_dict(result: EvalResult, *, save_completions: bool) -> dict:
+    n_trunc = sum(1 for ex in result.examples if ex.truncated)
+    n_trunc_correct = sum(1 for ex in result.examples if ex.truncated and ex.correct)
     out = {
         "name": result.name,
         "accuracy": result.accuracy,
         "correct": result.correct,
         "total": result.total,
         "wall_time_sec": result.wall_time_sec,
+        # Generation hit max_new_tokens without EOS (length-cut, format-agnostic).
+        "truncated": n_trunc,
+        "truncated_frac": n_trunc / result.total if result.total else 0.0,
+        "truncated_correct": n_trunc_correct,
+        "accuracy_excl_truncated": (
+            (result.correct - n_trunc_correct) / (result.total - n_trunc)
+            if (result.total - n_trunc) else 0.0
+        ),
     }
     if save_completions:
         out["examples"] = [
@@ -108,6 +118,7 @@ def _summary_dict(result: EvalResult, *, save_completions: bool) -> dict:
                 "gt": ex.gt,
                 "predicted": ex.predicted,
                 "correct": ex.correct,
+                "truncated": ex.truncated,
                 "completion": ex.completion,
             }
             for ex in result.examples

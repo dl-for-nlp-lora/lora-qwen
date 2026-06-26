@@ -74,6 +74,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-length", type=int, default=None,
                    help="Override tokenizer max_length (fewshot/instruct prompts "
                         "are longer; default 1024 for those styles).")
+    # LoRA-config overrides (avoid a YAML per sweep point, e.g. the rank sweep).
+    p.add_argument("--rank", type=int, default=None,
+                   help="Override LoRA rank from the config (alpha follows unless set).")
+    p.add_argument("--alpha", type=int, default=None,
+                   help="Override LoRA alpha (default: 2*rank when --rank is given).")
 
     # Hyperparameter overrides (None => use the train-config value).
     p.add_argument("--learning-rate", type=float, default=None)
@@ -92,7 +97,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dev-num-problems", type=int, default=1000,
                    help="How many dev problems to score in diagnostic evals.")
     p.add_argument("--eval-batch-size", type=int, default=32)
-    p.add_argument("--max-new-tokens", type=int, default=256)
+    p.add_argument("--max-new-tokens", type=int, default=512)
     return p.parse_args()
 
 
@@ -119,6 +124,11 @@ def _transformers_version() -> str:
 def main() -> int:
     args = parse_args()
     lora_cfg = LoraSetupConfig.from_yaml(args.lora_config)
+    if args.rank is not None:
+        lora_cfg.rank = args.rank
+        lora_cfg.alpha = args.alpha if args.alpha is not None else 2 * args.rank
+    elif args.alpha is not None:
+        lora_cfg.alpha = args.alpha
     data_cfg = DataConfig.from_yaml(args.data_config)
     train_cfg = _apply_overrides(TrainConfig.from_yaml(args.train_config), args)
 

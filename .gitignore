@@ -40,12 +40,28 @@ scripts/beat_baseline.sh
 scripts/diff_base_ft.py
 scripts/assemble_stage3.py
 scripts/plot_stage3.py
+scripts/headroom_fleet.sh
+scripts/warm_cache.py
+scripts/smoke_qwen25.sh
+scripts/run_full_ft_fair.sh
+scripts/eval_self_consistency.py
 
 # Scratch / internal result trees (published copies live under results/)
 results_v2/
 results_v4/
 results_v5/
 results_reeval/
+results_qwen25/
+
+# Scratch configs from exploration (not part of the published experiments)
+configs/qwen25/
+configs/E_probe/
+configs/train/probe50.yaml
+configs/train/diag_epochs_smoke.yaml
+configs/train/full_ft_fair.yaml
+configs/train/full_ft_fair_epoch.yaml
+configs/data/gsm8k_train_smoke.yaml
+configs/data/metamath_smoke.yaml
 
 # Shared checkpoint bundles (too large for git)
 checkpoints-export/

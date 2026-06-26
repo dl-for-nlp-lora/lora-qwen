@@ -1,0 +1,29 @@
+{
+  "lora_config": "configs/qwen25_1.5b/base.yaml",
+  "adapter_dir": null,
+  "full_model_dir": "/workspace/lora-qwen/checkpoints/headroom/qwen25_1.5b/full_ft",
+  "model_name": "Qwen/Qwen2.5-1.5B",
+  "backend": "full_ft",
+  "device": "cuda",
+  "split": "test",
+  "base_prompt": "instruct",
+  "ft_prompt": "instruct",
+  "num_problems": 1319,
+  "max_new_tokens": 512,
+  "batch_size": 64,
+  "lora": null,
+  "full_ft_params": 1543714304,
+  "base": null,
+  "ft": {
+    "name": "ft",
+    "accuracy": 0.5769522365428355,
+    "correct": 761,
+    "total": 1319,
+    "wall_time_sec": 373.8376548909582,
+    "truncated": 65,
+    "truncated_frac": 0.04927975739196361,
+    "truncated_correct": 22,
+    "accuracy_excl_truncated": 0.5893141945773525
+  },
+  "delta_accuracy": null
+}

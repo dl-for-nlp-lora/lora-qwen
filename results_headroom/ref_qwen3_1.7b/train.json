@@ -1,0 +1,120 @@
+{
+  "lora_config": "configs/qwen3_1.7b/qv.yaml",
+  "data_config": "configs/data/gsm8k_train.yaml",
+  "train_config": "configs/train/full.yaml",
+  "save_dir": "/workspace/lora-qwen/checkpoints/headroom/ref_qwen3_1.7b/qv_r16",
+  "model_name": "Qwen/Qwen3-1.7B-Base",
+  "backend": "custom",
+  "device": "cuda",
+  "transformers_version": "5.12.1",
+  "dataset": "gsm8k_train",
+  "data_split": "train",
+  "max_examples": null,
+  "train_prompt": "instruct",
+  "max_length": 1024,
+  "train": {
+    "num_epochs": 1,
+    "learning_rate": 0.0002,
+    "lr_schedule": "cosine",
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "per_device_batch_size": 4,
+    "grad_accum_steps": 2,
+    "seed": 0
+  },
+  "lora": {
+    "target_modules": [
+      "q_proj",
+      "v_proj"
+    ],
+    "rank": 16,
+    "alpha": 32,
+    "dropout": 0.05,
+    "scaling": 2.0,
+    "matched_modules": 56,
+    "per_target": {
+      "q_proj": 28,
+      "v_proj": 28
+    },
+    "expected_trainable_params": 3211264,
+    "total_params": 1720574976,
+    "pct_of_total": 0.18663900409998757,
+    "actual_trainable_params": 3211264
+  },
+  "steps_done": 809,
+  "wall_time_sec": 360.7600393460598,
+  "final_loss": 0.3650968795021375,
+  "loss_curve": [
+    [
+      50,
+      0.5029542733728886
+    ],
+    [
+      100,
+      0.3695461390912533
+    ],
+    [
+      150,
+      0.37879378214478493
+    ],
+    [
+      200,
+      0.34790646806359293
+    ],
+    [
+      250,
+      0.3620598928630352
+    ],
+    [
+      300,
+      0.35537471026182177
+    ],
+    [
+      350,
+      0.3865116120874882
+    ],
+    [
+      400,
+      0.3495181283354759
+    ],
+    [
+      450,
+      0.35485918432474134
+    ],
+    [
+      500,
+      0.35384948551654816
+    ],
+    [
+      550,
+      0.33956470668315886
+    ],
+    [
+      600,
+      0.346746184527874
+    ],
+    [
+      650,
+      0.36253353402018546
+    ],
+    [
+      700,
+      0.3644915300607681
+    ],
+    [
+      750,
+      0.3616598029434681
+    ],
+    [
+      800,
+      0.3438909666240215
+    ],
+    [
+      809,
+      0.3650968795021375
+    ]
+  ],
+  "dev_curve": [],
+  "step_curve": [],
+  "eval_every_steps": null
+}

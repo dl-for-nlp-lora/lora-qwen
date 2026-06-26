@@ -101,8 +101,13 @@ GQA-solved per target set) → E2 rank sweep → final test matrix
 
 Result: the LoRA gain over base-instruct is **+0.321** for the weak Qwen2-1.5B
 but only **+0.031** for the strong Qwen2.5-1.5B — LoRA helps in proportion to the
-pretraining headroom. Full tables, per-stage figures, and the slide writeup are
-in [`analysis/headroom_summary.md`](analysis/headroom_summary.md); per-run JSONs
+pretraining headroom. Extending the range with a larger **reference backbone**
+(Qwen3-1.7B, same recipe, base instruct ≈0.76) the gain turns **negative**
+(**−0.092**): once a model already masters the task, the in-style SFT trades
+reasoning for format and costs accuracy. (Qwen3 differs in size/architecture, so
+it is a reference point, not a fourth cell of the controlled experiment.) Full
+tables, per-stage figures, and the slide writeup are in
+[`analysis/headroom_summary.md`](analysis/headroom_summary.md); per-run JSONs
 under `results_headroom/<model>/`.
 
 > **Dev-metric caveat (contamination).** The dev slice is part of GSM8K-train,

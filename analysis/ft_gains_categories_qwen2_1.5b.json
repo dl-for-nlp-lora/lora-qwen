@@ -1,0 +1,18 @@
+{
+  "model": "qwen2_1.5b",
+  "base_correct": 289,
+  "ft_correct": 712,
+  "total": 1319,
+  "n_corrections": 493,
+  "n_regressions": 70,
+  "corrections": {
+    "code-style impl error (\u2192 explicit reasoning)": 470,
+    "non-termination / runaway (\u2192 clean ####)": 1,
+    "prose reasoning/arithmetic fix": 22
+  },
+  "regressions": {
+    "non-termination / degenerate loop": 2,
+    "lost-a-step compression": 54,
+    "other content error": 14
+  }
+}

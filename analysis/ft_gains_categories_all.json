@@ -1,0 +1,56 @@
+{
+  "qwen2_1.5b": {
+    "model": "qwen2_1.5b",
+    "base_correct": 289,
+    "ft_correct": 712,
+    "total": 1319,
+    "n_corrections": 493,
+    "n_regressions": 70,
+    "corrections": {
+      "code-style impl error (\u2192 explicit reasoning)": 470,
+      "non-termination / runaway (\u2192 clean ####)": 1,
+      "prose reasoning/arithmetic fix": 22
+    },
+    "regressions": {
+      "non-termination / degenerate loop": 2,
+      "lost-a-step compression": 54,
+      "other content error": 14
+    }
+  },
+  "qwen25_1.5b": {
+    "model": "qwen25_1.5b",
+    "base_correct": 735,
+    "ft_correct": 776,
+    "total": 1319,
+    "n_corrections": 225,
+    "n_regressions": 184,
+    "corrections": {
+      "code-style impl error (\u2192 explicit reasoning)": 0,
+      "non-termination / runaway (\u2192 clean ####)": 93,
+      "prose reasoning/arithmetic fix": 132
+    },
+    "regressions": {
+      "non-termination / degenerate loop": 3,
+      "lost-a-step compression": 85,
+      "other content error": 96
+    }
+  },
+  "qwen3_1.7b": {
+    "model": "qwen3_1.7b",
+    "base_correct": 998,
+    "ft_correct": 876,
+    "total": 1319,
+    "n_corrections": 107,
+    "n_regressions": 229,
+    "corrections": {
+      "code-style impl error (\u2192 explicit reasoning)": 0,
+      "non-termination / runaway (\u2192 clean ####)": 3,
+      "prose reasoning/arithmetic fix": 104
+    },
+    "regressions": {
+      "non-termination / degenerate loop": 1,
+      "lost-a-step compression": 227,
+      "other content error": 1
+    }
+  }
+}

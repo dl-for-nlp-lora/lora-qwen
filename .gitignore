@@ -32,6 +32,9 @@ checkpoints/
 *.jsonl
 wandb/
 
+# Derived per-rank scratch configs written during the test re-eval sweep
+results_headroom/**/test_sweeps/_cfg_*.yaml
+
 # Local experiment drivers (pod/stage automation)
 scripts/stage*.sh
 scripts/pod_*.sh

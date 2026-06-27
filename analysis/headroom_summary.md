@@ -31,6 +31,22 @@ All numbers are GSM8K-**test** accuracy (n=1319) at a 512-token budget.
 
 The sweep dev slice is a held-out part of GSM8K-**train**. The Qwen models appear to have seen GSM8K-train during pretraining: the **untrained** Qwen2-1.5B base already scores **0.87 on dev-500 vs 0.25 on test-500** (same prompt, same budget, ~0% truncation, identical question difficulty). Since no fine-tuning is involved, this gap is pretraining memorization of the train split, not a training/leakage bug in our pipeline (train/dev indices are disjoint; 0/1000 dev items have a ≥0.8-similar train neighbor). **All headline numbers above are on the clean GSM8K-test split.** The dev metric is only used for *relative* stage decisions within a model, where the constant offset cancels.
 
+## Target / rank sweeps (E1 / E2)
+
+The funnel selects the target set (E1) and rank (E2) on the held-out dev slice. To report honest absolute numbers, every dev-trained adapter is re-scored on GSM8K-test below (selection stays on dev — this is a robustness check, no re-training). On test the within-sweep spread collapses to ≈1 binomial SE (±0.014 at n=1319): both the target set and the rank are largely interchangeable, and a tiny rank (1–2) already matches the best — reproducing the paper's "LoRA is robust to target choice / small rank suffices" finding.
+
+![qwen2 sweeps](../results_headroom/figures/qwen2_1.5b_sweeps.png)
+
+![qwen2.5 sweeps](../results_headroom/figures/qwen25_1.5b_sweeps.png)
+
+## Adaptation methods per model (GSM8K-test @512)
+
+Per model, the four operating points on the selected best config: base zero-shot, base instruct, best LoRA, and full fine-tuning.
+
+![qwen2 methods](../results_headroom/figures/qwen2_1.5b_methods.png)
+
+![qwen2.5 methods](../results_headroom/figures/qwen25_1.5b_methods.png)
+
 ## Figures
 
 ![comparison](../results_headroom/figures/headroom_comparison.png)

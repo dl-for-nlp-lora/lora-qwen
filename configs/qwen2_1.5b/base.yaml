@@ -1,0 +1,9 @@
+name: "qwen2_1.5b-base"
+model_name: "Qwen/Qwen2-1.5B"
+target_modules: null
+rank: 16
+alpha: 32
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "peft"

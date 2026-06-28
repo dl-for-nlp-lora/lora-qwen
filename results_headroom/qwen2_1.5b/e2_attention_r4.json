@@ -1,0 +1,132 @@
+{
+  "lora_config": "configs/E15b_qwen2/attention.yaml",
+  "data_config": "configs/data/gsm8k_train.yaml",
+  "train_config": "configs/train/full.yaml",
+  "save_dir": "/workspace/lora-qwen/checkpoints/headroom/qwen2_1.5b/e2_attention_r4",
+  "model_name": "Qwen/Qwen2-1.5B",
+  "backend": "custom",
+  "device": "cuda",
+  "transformers_version": "5.12.1",
+  "dataset": "gsm8k_train",
+  "data_split": "train",
+  "max_examples": null,
+  "train_prompt": "instruct",
+  "max_length": 1024,
+  "train": {
+    "num_epochs": 1,
+    "learning_rate": 0.0002,
+    "lr_schedule": "cosine",
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "per_device_batch_size": 4,
+    "grad_accum_steps": 2,
+    "seed": 0
+  },
+  "lora": {
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj"
+    ],
+    "rank": 4,
+    "alpha": 8,
+    "dropout": 0.05,
+    "scaling": 2.0,
+    "matched_modules": 112,
+    "per_target": {
+      "q_proj": 28,
+      "k_proj": 28,
+      "v_proj": 28,
+      "o_proj": 28
+    },
+    "expected_trainable_params": 1089536,
+    "total_params": 1543714304,
+    "pct_of_total": 0.0705788627582737,
+    "actual_trainable_params": 1089536
+  },
+  "steps_done": 809,
+  "wall_time_sec": 405.6632164439943,
+  "final_loss": 0.25868936710887486,
+  "loss_curve": [
+    [
+      50,
+      0.4143363744020462
+    ],
+    [
+      100,
+      0.25723029248416424
+    ],
+    [
+      150,
+      0.26611496180295946
+    ],
+    [
+      200,
+      0.24168231271207333
+    ],
+    [
+      250,
+      0.25856427758932116
+    ],
+    [
+      300,
+      0.2467200208455324
+    ],
+    [
+      350,
+      0.27497168399393557
+    ],
+    [
+      400,
+      0.24363664790987968
+    ],
+    [
+      450,
+      0.25206428185105323
+    ],
+    [
+      500,
+      0.2490249340236187
+    ],
+    [
+      550,
+      0.23406571447849273
+    ],
+    [
+      600,
+      0.23622202508151532
+    ],
+    [
+      650,
+      0.256836446672678
+    ],
+    [
+      700,
+      0.2590000483393669
+    ],
+    [
+      750,
+      0.25616067491471767
+    ],
+    [
+      800,
+      0.24101396203041076
+    ],
+    [
+      809,
+      0.25868936710887486
+    ]
+  ],
+  "dev_curve": [
+    {
+      "epoch": 1,
+      "checkpoint": "/workspace/lora-qwen/checkpoints/headroom/qwen2_1.5b/e2_attention_r4_ep1",
+      "dev_accuracy": 0.802,
+      "dev_correct": 401,
+      "dev_total": 500
+    }
+  ],
+  "step_curve": [],
+  "eval_every_steps": null
+}

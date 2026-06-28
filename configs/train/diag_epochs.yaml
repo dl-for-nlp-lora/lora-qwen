@@ -1,0 +1,16 @@
+# Epochs diagnostic recipe. CONSTANT LR (not cosine) so each per-epoch
+# checkpoint is a fair comparison: with cosine, the epoch-1 point would still
+# be at high LR and not comparable to a real 1-epoch cosine run. We sweep
+# epochs by training once for num_epochs and dev-evaluating after each one.
+max_steps: null
+num_epochs: 4
+warmup_ratio: 0.03
+learning_rate: 2.0e-4
+weight_decay: 0.0
+max_grad_norm: 1.0
+lr_schedule: "constant"
+per_device_batch_size: 4
+grad_accum_steps: 2
+autocast_dtype: "bfloat16"
+log_every: 25
+seed: 0

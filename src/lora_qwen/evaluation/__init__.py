@@ -6,7 +6,14 @@ MBPP, ...) only requires one file + a `@register_task` call.
 """
 
 from lora_qwen.evaluation.extract import extract_number, numbers_match
-from lora_qwen.evaluation.gsm8k import GSM8KProblem, format_prompt, load_gsm8k
+from lora_qwen.evaluation.gsm8k import (
+    GSM8KProblem,
+    format_prompt,
+    format_prompt_fewshot,
+    format_prompt_instruct,
+    load_gsm8k,
+    resolve_prompt_fn,
+)
 from lora_qwen.evaluation.runner import EvalResult, evaluate_gsm8k
 
 __all__ = [
@@ -15,6 +22,9 @@ __all__ = [
     "evaluate_gsm8k",
     "extract_number",
     "format_prompt",
+    "format_prompt_fewshot",
+    "format_prompt_instruct",
     "load_gsm8k",
     "numbers_match",
+    "resolve_prompt_fn",
 ]

@@ -1,0 +1,10 @@
+name: "E15b_qwen25_v"
+model_name: "Qwen/Qwen2.5-1.5B"
+target_modules:
+  - v_proj
+rank: 50
+alpha: 100
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "custom"

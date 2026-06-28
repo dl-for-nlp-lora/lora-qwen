@@ -1,0 +1,11 @@
+name: qwen25_1.5b_best_qv_r16
+model_name: Qwen/Qwen2.5-1.5B
+target_modules:
+- q_proj
+- v_proj
+rank: 16
+alpha: 32
+dropout: 0.05
+dtype: bfloat16
+device: auto
+backend: custom

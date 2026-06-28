@@ -1,0 +1,16 @@
+name: "E15b_qwen25_all_linear"
+model_name: "Qwen/Qwen2.5-1.5B"
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+rank: 2
+alpha: 4
+dropout: 0.05
+dtype: "bfloat16"
+device: "auto"
+backend: "custom"

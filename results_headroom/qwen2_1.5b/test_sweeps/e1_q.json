@@ -1,0 +1,45 @@
+{
+  "lora_config": "configs/E15b_qwen2/q.yaml",
+  "adapter_dir": "/workspace/lora-qwen/checkpoints/headroom/qwen2_1.5b/e1_q",
+  "full_model_dir": null,
+  "model_name": "Qwen/Qwen2-1.5B",
+  "backend": "custom",
+  "device": "cuda",
+  "split": "test",
+  "base_prompt": "instruct",
+  "ft_prompt": "instruct",
+  "num_problems": 1319,
+  "max_new_tokens": 512,
+  "batch_size": 64,
+  "lora": {
+    "target_modules": [
+      "q_proj"
+    ],
+    "rank": 29,
+    "alpha": 58,
+    "dropout": 0.05,
+    "scaling": 2.0,
+    "matched_modules": 28,
+    "per_target": {
+      "q_proj": 28
+    },
+    "expected_trainable_params": 2494464,
+    "total_params": 1543714304,
+    "pct_of_total": 0.16158844894657398,
+    "actual_trainable_params": 2494464
+  },
+  "full_ft_params": null,
+  "base": null,
+  "ft": {
+    "name": "ft",
+    "accuracy": 0.5269143290371494,
+    "correct": 695,
+    "total": 1319,
+    "wall_time_sec": 397.4564765896648,
+    "truncated": 4,
+    "truncated_frac": 0.003032600454890068,
+    "truncated_correct": 0,
+    "accuracy_excl_truncated": 0.5285171102661597
+  },
+  "delta_accuracy": null
+}

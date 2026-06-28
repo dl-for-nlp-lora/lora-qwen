@@ -1,0 +1,13 @@
+name: qwen2_1.5b_best_attention_r1
+model_name: Qwen/Qwen2-1.5B
+target_modules:
+- q_proj
+- k_proj
+- v_proj
+- o_proj
+rank: 1
+alpha: 2
+dropout: 0.05
+dtype: bfloat16
+device: auto
+backend: custom

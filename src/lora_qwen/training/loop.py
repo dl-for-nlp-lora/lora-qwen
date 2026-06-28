@@ -18,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import torch
@@ -86,12 +87,25 @@ def train(
     config: TrainConfig,
     *,
     device: torch.device,
+    on_epoch_end: Callable[[int, nn.Module], None] | None = None,
+    on_macro_step: Callable[[int, nn.Module], None] | None = None,
+    eval_every_steps: int | None = None,
+    optimizer: str = "adamw",
 ) -> TrainResult:
     """Run supervised fine-tuning over ``dataset`` and return a :class:`TrainResult`.
 
     The model is trained in place. Saving is the caller's responsibility
     (use :func:`lora_qwen.lora.save_adapter`) so the training loop stays
     backend-agnostic.
+
+    ``on_epoch_end(epoch_1based, model)`` is invoked after every completed epoch
+    (only in epoch-budget mode, i.e. ``max_steps is None``). The epochs
+    diagnostic uses it to checkpoint + dev-eval per epoch in a single run.
+
+    ``on_macro_step(step, model)`` is invoked every ``eval_every_steps`` macro
+    steps (and at the final step if it does not land on the interval). Used for
+    intra-epoch dev curves. Callbacks run with the model in ``eval()`` mode and
+    are restored to ``train()`` afterwards; they must not mutate optimizer state.
     """
     torch.manual_seed(config.seed)
 
@@ -110,12 +124,20 @@ def train(
             "(Base model has all params frozen; LoRA params are what you train.)"
         )
 
-    optim = AdamW(
-        trainable,
-        lr=config.learning_rate,
-        betas=config.betas,
-        weight_decay=config.weight_decay,
-    )
+    if optimizer == "sgd":
+        optim = torch.optim.SGD(
+            trainable,
+            lr=config.learning_rate,
+            momentum=0.9,
+            weight_decay=config.weight_decay,
+        )
+    else:
+        optim = AdamW(
+            trainable,
+            lr=config.learning_rate,
+            betas=config.betas,
+            weight_decay=config.weight_decay,
+        )
 
     micro_per_epoch = len(loader)
     macro_per_epoch = micro_per_epoch // config.grad_accum_steps
@@ -175,8 +197,36 @@ def train(
                         running_loss = 0.0
                         running_count = 0
 
-                    if macro_step >= total_macro:
+                    if (
+                        on_macro_step is not None
+                        and eval_every_steps is not None
+                        and eval_every_steps > 0
+                        and (
+                            macro_step % eval_every_steps == 0
+                            or macro_step == total_macro
+                        )
+                    ):
+                        was_train = model.training
+                        model.eval()
+                        with torch.no_grad():
+                            on_macro_step(macro_step, model)
+                        if was_train:
+                            model.train()
+
+                    # In max_steps mode, stop the instant we hit the budget.
+                    # In epoch mode we let the epoch finish naturally so the
+                    # end-of-epoch callback (and the final epoch) always run.
+                    if config.max_steps is not None and macro_step >= total_macro:
                         raise StopIteration
+            # Completed a full epoch (epoch-budget mode only): let the caller
+            # checkpoint / dev-eval before the next epoch starts.
+            if config.max_steps is None and on_epoch_end is not None:
+                was_train = model.training
+                model.eval()
+                with torch.no_grad():
+                    on_epoch_end(epoch + 1, model)
+                if was_train:
+                    model.train()
             if config.max_steps is None and epoch + 1 >= config.num_epochs:
                 break
     except StopIteration:

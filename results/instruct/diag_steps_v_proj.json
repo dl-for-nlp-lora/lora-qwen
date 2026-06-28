@@ -1,0 +1,253 @@
+{
+  "lora_config": "configs/E_4.4m_params/E4.4m_v_proj.yaml",
+  "data_config": "configs/data/gsm8k_train.yaml",
+  "train_config": "configs/train/diag_epochs.yaml",
+  "save_dir": "checkpoints/v4_instruct/diag_steps_v_proj",
+  "model_name": "Qwen/Qwen3-1.7B-Base",
+  "backend": "custom",
+  "device": "cuda",
+  "transformers_version": "5.12.1",
+  "dataset": "gsm8k_train",
+  "data_split": "train",
+  "max_examples": null,
+  "train_prompt": "instruct",
+  "max_length": 1024,
+  "train": {
+    "num_epochs": 1,
+    "learning_rate": 0.0002,
+    "lr_schedule": "constant",
+    "weight_decay": 0.0,
+    "warmup_ratio": 0.03,
+    "per_device_batch_size": 4,
+    "grad_accum_steps": 2,
+    "seed": 0
+  },
+  "lora": {
+    "target_modules": [
+      "v_proj"
+    ],
+    "rank": 51,
+    "alpha": 102,
+    "dropout": 0.05,
+    "scaling": 2.0,
+    "matched_modules": 28,
+    "per_target": {
+      "v_proj": 28
+    },
+    "expected_trainable_params": 4386816,
+    "total_params": 1720574976,
+    "pct_of_total": 0.25496221095801874,
+    "actual_trainable_params": 4386816
+  },
+  "steps_done": 809,
+  "wall_time_sec": 2548.315735168755,
+  "final_loss": 0.3576795334617297,
+  "loss_curve": [
+    [
+      25,
+      0.5736274343729019
+    ],
+    [
+      50,
+      0.3761975598335266
+    ],
+    [
+      75,
+      0.372202125787735
+    ],
+    [
+      100,
+      0.36441162288188933
+    ],
+    [
+      125,
+      0.38956802785396577
+    ],
+    [
+      150,
+      0.36830776065588
+    ],
+    [
+      175,
+      0.3527473106980324
+    ],
+    [
+      200,
+      0.34275881707668304
+    ],
+    [
+      225,
+      0.35720616698265073
+    ],
+    [
+      250,
+      0.36509906947612764
+    ],
+    [
+      275,
+      0.3556951054930687
+    ],
+    [
+      300,
+      0.3552980849146843
+    ],
+    [
+      325,
+      0.38255816876888277
+    ],
+    [
+      350,
+      0.3908634302020073
+    ],
+    [
+      375,
+      0.3505104914307594
+    ],
+    [
+      400,
+      0.3491414999961853
+    ],
+    [
+      425,
+      0.35856414675712583
+    ],
+    [
+      450,
+      0.35210802108049394
+    ],
+    [
+      475,
+      0.3647941157221794
+    ],
+    [
+      500,
+      0.34192014575004576
+    ],
+    [
+      525,
+      0.33556692987680437
+    ],
+    [
+      550,
+      0.34588162958621976
+    ],
+    [
+      575,
+      0.34499235570430753
+    ],
+    [
+      600,
+      0.34437010884284974
+    ],
+    [
+      625,
+      0.35824901252985003
+    ],
+    [
+      650,
+      0.3658458507061005
+    ],
+    [
+      675,
+      0.35827011972665784
+    ],
+    [
+      700,
+      0.3695704054832458
+    ],
+    [
+      725,
+      0.3587502205371857
+    ],
+    [
+      750,
+      0.35762822479009626
+    ],
+    [
+      775,
+      0.34759348303079607
+    ],
+    [
+      800,
+      0.33552037745714186
+    ],
+    [
+      809,
+      0.3576795334617297
+    ]
+  ],
+  "dev_curve": [],
+  "step_curve": [
+    {
+      "step": 0,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step0",
+      "dev_accuracy": 0.615,
+      "dev_correct": 615,
+      "dev_total": 1000
+    },
+    {
+      "step": 100,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step100",
+      "dev_accuracy": 0.715,
+      "dev_correct": 715,
+      "dev_total": 1000
+    },
+    {
+      "step": 200,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step200",
+      "dev_accuracy": 0.719,
+      "dev_correct": 719,
+      "dev_total": 1000
+    },
+    {
+      "step": 300,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step300",
+      "dev_accuracy": 0.712,
+      "dev_correct": 712,
+      "dev_total": 1000
+    },
+    {
+      "step": 400,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step400",
+      "dev_accuracy": 0.73,
+      "dev_correct": 730,
+      "dev_total": 1000
+    },
+    {
+      "step": 500,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step500",
+      "dev_accuracy": 0.726,
+      "dev_correct": 726,
+      "dev_total": 1000
+    },
+    {
+      "step": 600,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step600",
+      "dev_accuracy": 0.695,
+      "dev_correct": 695,
+      "dev_total": 1000
+    },
+    {
+      "step": 700,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step700",
+      "dev_accuracy": 0.739,
+      "dev_correct": 739,
+      "dev_total": 1000
+    },
+    {
+      "step": 800,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step800",
+      "dev_accuracy": 0.725,
+      "dev_correct": 725,
+      "dev_total": 1000
+    },
+    {
+      "step": 809,
+      "checkpoint": "checkpoints/v4_instruct/diag_steps_v_proj_step809",
+      "dev_accuracy": 0.743,
+      "dev_correct": 743,
+      "dev_total": 1000
+    }
+  ],
+  "eval_every_steps": 100
+}

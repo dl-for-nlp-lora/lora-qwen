@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""E3 subspace analysis scripts for LoRA paper reproduction.
+"""E3 subspace analyses for the LoRA reproduction.
 
-Implements the subspace analyses from Hu et al. 2021, §7.2-7.3:
-
-- E3a: Grassmann similarity heatmap between layers (paper Fig. 3)
-- E3b: Cross-seed subspace similarity (paper Fig. 4)
-- E3c: Amplification factor analysis (paper Tab. 7)
+- E3a: Grassmann similarity heatmap between layers
+- E3b: Cross-seed subspace similarity
+- E3c: Amplification factor analysis
 
 Run:
     # E3a: Grassmann similarity heatmap
@@ -38,10 +36,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from scipy.linalg import subspace_angles
+
+from subspace_plots import (
+    plot_cross_seed,
+    plot_amplification_table,
+    plot_grassmann_heatmap,
+)
 
 
 def load_adapter_weights(checkpoint_dir: Path) -> dict[str, torch.Tensor]:
@@ -50,7 +53,7 @@ def load_adapter_weights(checkpoint_dir: Path) -> dict[str, torch.Tensor]:
     if not adapter_path.exists():
         raise FileNotFoundError(f"Adapter not found at {adapter_path}")
     state_dict = torch.load(adapter_path, map_location="cpu", weights_only=True)
-    # Convert BFloat16/Float16 to Float32 for scipy compatibility
+    # float32 so downstream SVD / scipy calls accept the tensors
     return {k: v.float() for k, v in state_dict.items()}
 
 
@@ -58,10 +61,9 @@ def load_base_model_weights(model_name: str):
     """Load base model weights for amplification factor analysis."""
     from transformers import AutoModelForCausalLM
     print(f"Loading base model '{model_name}' (this may take a minute)...")
-    # Load in float32 for analysis compatibility
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, 
-        torch_dtype=torch.float32
+        model_name,
+        torch_dtype=torch.float32,
     )
     return model
 
@@ -69,25 +71,20 @@ def load_base_model_weights(model_name: str):
 def group_lora_weights_by_module(
     state_dict: dict[str, torch.Tensor], module_type: str
 ) -> dict[int, tuple[torch.Tensor, torch.Tensor]]:
-    """
-    Group LoRA weights by module type (e.g., all q_proj layers).
+    """Group LoRA weights by module type into {layer_idx: (A, B)}.
 
-    Returns dict: {layer_idx: (A_matrix, B_matrix)}
-
-    Key pattern: model.layers.{i}.self_attn.{module_type}.lora_A
+    Keys look like model.layers.{i}.self_attn.{module_type}.lora_A / lora_B.
     """
     lora_weights = {}
 
     for key, tensor in state_dict.items():
-        # Parse key: model.layers.{i}.self_attn.{module_type}.lora_A/B
         parts = key.split(".")
         if len(parts) < 6:
             continue
 
         try:
-            layer_idx = int(parts[2])  # model.layers.{i}
-            attn_part = parts[3]  # self_attn
-            module_name = parts[4]  # e.g., q_proj
+            layer_idx = int(parts[2])
+            module_name = parts[4]
 
             if module_name != module_type:
                 continue
@@ -103,7 +100,7 @@ def group_lora_weights_by_module(
         except (ValueError, IndexError):
             continue
 
-    # Convert lists to tuples and filter incomplete entries
+    # keep only layers that have both A and B
     result = {}
     for idx, (A, B) in lora_weights.items():
         if A is not None and B is not None:
@@ -115,44 +112,65 @@ def group_lora_weights_by_module(
 def get_base_weight(
     model, layer_idx: int, module_type: str
 ) -> torch.Tensor | None:
-    """Extract base weight matrix for a specific layer and module type."""
-    try:
-        # Pattern: model.layers.{i}.self_attn.{module_type}.weight
-        weight_path = f"layers.{layer_idx}.self_attn.{module_type}.weight"
-        parts = weight_path.split(".")
-        module = model
-        for part in parts:
-            module = getattr(module, part)
+    """Return the base weight for a layer/module, or None if not found.
+
+    Tries several submodule paths since the decoder may be nested differently
+    depending on whether the model is a causal-LM wrapper or a bare decoder.
+    """
+    candidate_paths = [
+        f"model.layers.{layer_idx}.self_attn.{module_type}",
+        f"layers.{layer_idx}.self_attn.{module_type}",
+        f"model.model.layers.{layer_idx}.self_attn.{module_type}",
+    ]
+    for path in candidate_paths:
+        try:
+            module = model.get_submodule(path)
+        except AttributeError:
+            continue
         return module.weight.data
-    except (AttributeError, IndexError):
-        return None
+    return None
 
 
 def compute_grassmann_similarity(A1: torch.Tensor, A2: torch.Tensor) -> float:
-    """
-    Compute Grassmann similarity between two subspaces.
-
-    Args:
-        A1, A2: matrices of shape (r, d) spanning subspaces
-
-    Returns:
-        similarity in [0, 1] where 1 = identical subspaces
-
-    Uses principal angles: similarity = mean(cos²(θ_k))
-    """
-    # Ensure matrices are 2D and in numpy format
+    """Grassmann similarity in [0, 1] between the subspaces spanned by A1 and A2
+    (shape (r, d)), 1 means identical subspaces."""
     A1_np = A1.detach().cpu().numpy()
     A2_np = A2.detach().cpu().numpy()
 
-    # Compute principal angles between subspaces
-    # scipy.linalg.subspace_angles expects (d, r) shape
     try:
         angles = subspace_angles(A1_np.T, A2_np.T)
-        similarity = float(np.mean(np.cos(angles) ** 2))
-        return similarity
+        return float(np.mean(np.cos(angles) ** 2))
     except ValueError:
-        # Fallback for rank-deficient matrices
+        # rank-deficient matrices
         return 0.0
+
+
+def compute_similarity_grid(
+    A1: torch.Tensor, A2: torch.Tensor, max_k: int | None = None
+) -> np.ndarray:
+    """Normalized similarity grid between the top directions of two LoRA-A runs.
+
+    Returns a (max_k, max_k) grid where entry (i-1, j-1) is the similarity in
+    [0, 1] between A1's top-i and A2's top-j directions (defaults to all r).
+    """
+    A1_np = A1.detach().cpu().numpy().astype(np.float64)
+    A2_np = A2.detach().cpu().numpy().astype(np.float64)
+
+    # right singular vectors, ordered by singular value
+    _, _, Vt1 = np.linalg.svd(A1_np, full_matrices=False)
+    _, _, Vt2 = np.linalg.svd(A2_np, full_matrices=False)
+
+    r = min(Vt1.shape[0], Vt2.shape[0])
+    max_k = r if max_k is None else min(max_k, r)
+
+    M = Vt1[:max_k] @ Vt2[:max_k].T
+
+    # squared overlap accumulated over top-i/top-j, normalised by min(i, j)
+    cumsum = np.cumsum(np.cumsum(M**2, axis=0), axis=1)
+    i_idx = np.arange(1, max_k + 1).reshape(-1, 1)
+    j_idx = np.arange(1, max_k + 1).reshape(1, -1)
+    grid = cumsum / np.minimum(i_idx, j_idx)
+    return grid
 
 
 def compute_amplification_factor(
@@ -161,89 +179,68 @@ def compute_amplification_factor(
     base_W: torch.Tensor,
     alpha: float,
     r: int,
-) -> float:
-    """
-    Compute amplification factor from paper §7.3.
+) -> dict[str, float]:
+    """Amplification factor of the LoRA update for one weight matrix.
 
-    ΔW = (α/r) × B × A
-    Amplification = ‖ΔW‖_F / ‖UᵀWVᵀ‖_F
-
-    Where U, V are top-r singular vectors of W.
+    Builds ΔW = (α/r)·B·A and measures how large it is relative to the part of W
+    living in ΔW's leading directions. W is also projected onto its own top-r
+    subspace and a random subspace for comparison, and the factor is computed
+    over the top-k directions of ΔW for several k.
 
     Returns:
-        Amplification factor (ratio of norms)
+        dict with the full-r norms plus a "topk" sub-dict per k.
     """
-    # Compute ΔW = (α/r) × B × A
     delta_W = (alpha / r) * (lora_B @ lora_A)
 
-    # SVD of base weight W = U @ S @ Vt
-    U, S, Vt = torch.linalg.svd(base_W, full_matrices=False)
+    def proj_norm(U_r: torch.Tensor, Vt_r: torch.Tensor) -> float:
+        return torch.norm(U_r.T @ base_W @ Vt_r.T, p="fro").item()
 
-    # Extract top-r singular vectors
-    U_r = U[:, :r]  # (d_out, r)
-    V_r = Vt[:r, :]  # (r, d_in)
+    # Sd already includes the α/r scaling
+    Ud, Sd, Vtd = torch.linalg.svd(delta_W, full_matrices=False)
+    proj_delta = proj_norm(Ud[:, :r], Vtd[:r, :])
 
-    # Project base weight onto top-r subspace: U_r.T @ W @ V_r.T
-    # This gives the r×r matrix of W in the top singular subspace
-    W_projected = U_r.T @ base_W @ V_r.T
+    Uw, _, Vtw = torch.linalg.svd(base_W, full_matrices=False)
+    proj_w = proj_norm(Uw[:, :r], Vtw[:r, :])
 
-    # Compute Frobenius norms
-    delta_norm = torch.norm(delta_W, p="fro")
-    base_norm = torch.norm(W_projected, p="fro")
+    # random orthonormal subspace as a baseline
+    gen = torch.Generator(device=base_W.device).manual_seed(0)
+    rand_out = torch.randn(base_W.shape[0], r, generator=gen,
+                           device=base_W.device, dtype=base_W.dtype)
+    rand_in = torch.randn(base_W.shape[1], r, generator=gen,
+                          device=base_W.device, dtype=base_W.dtype)
+    q_out, _ = torch.linalg.qr(rand_out)
+    q_in, _ = torch.linalg.qr(rand_in)
+    proj_rand = proj_norm(q_out, q_in.T)
 
-    if base_norm < 1e-10:
-        # Avoid division by zero
-        return float("inf") if delta_norm > 0 else 1.0
+    delta_norm = torch.norm(delta_W, p="fro").item()
+    w_norm = torch.norm(base_W, p="fro").item()
 
-    return (delta_norm / base_norm).item()
+    amplification = float("inf") if proj_delta < 1e-10 else delta_norm / proj_delta
 
+    # same factor restricted to ΔW's leading k directions
+    sd_sq = (Sd**2).cpu()
+    topk: dict[str, dict[str, float]] = {}
+    for k in [kk for kk in (1, 2, 4, 8, 16, 32, r) if kk <= r]:
+        delta_k_norm = float(torch.sqrt(sd_sq[:k].sum()))
+        proj_delta_k = proj_norm(Ud[:, :k], Vtd[:k, :])
+        proj_rand_k = proj_norm(q_out[:, :k], q_in[:, :k].T)
+        amp_k = float("inf") if proj_delta_k < 1e-10 else delta_k_norm / proj_delta_k
+        topk[str(k)] = {
+            "amplification": amp_k,
+            "delta_norm": delta_k_norm,
+            "proj_onto_delta_subspace": proj_delta_k,
+            "proj_onto_random_subspace": proj_rand_k,
+        }
 
-def plot_grassmann_heatmap(
-    similarity_matrix: np.ndarray,
-    layer_names: list[str],
-    module_type: str,
-    output_path: Path,
-    title_suffix: str = "",
-) -> None:
-    """Create heatmap visualization like paper Fig. 3."""
-    fig, ax = plt.subplots(figsize=(10, 8))
-
-    # Plot heatmap with viridis colormap
-    im = ax.imshow(
-        similarity_matrix, cmap="viridis", vmin=0, vmax=1, aspect="auto"
-    )
-
-    # Label axes with layer indices
-    ax.set_xticks(range(len(layer_names)))
-    ax.set_yticks(range(len(layer_names)))
-    ax.set_xticklabels(layer_names, fontsize=10)
-    ax.set_yticklabels(layer_names, fontsize=10)
-
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax, label="Grassmann Similarity")
-    cbar.ax.tick_params(labelsize=10)
-
-    # Title and labels
-    title = f"{module_type} - Inter-layer Subspace Similarity"
-    if title_suffix:
-        title += f" {title_suffix}"
-    ax.set_title(title, fontsize=14)
-    ax.set_xlabel("Layer", fontsize=12)
-    ax.set_ylabel("Layer", fontsize=12)
-
-    # Add text annotations for values
-    for i in range(len(layer_names)):
-        for j in range(len(layer_names)):
-            val = similarity_matrix[i, j]
-            color = "white" if val > 0.5 else "black"
-            ax.text(
-                j, i, f"{val:.2f}", ha="center", va="center", color=color, fontsize=8
-            )
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"Saved heatmap to {output_path}")
-    plt.close()
+    return {
+        "amplification": amplification,
+        "delta_norm": delta_norm,
+        "W_norm": w_norm,
+        "proj_onto_delta_subspace": proj_delta,
+        "proj_onto_W_subspace": proj_w,
+        "proj_onto_random_subspace": proj_rand,
+        "topk": topk,
+    }
 
 
 def analyze_grassmann(
@@ -259,7 +256,7 @@ def analyze_grassmann(
     Returns dict with similarity matrices for each module type.
     """
     if representative_layers is None:
-        # Evenly spaced layers across the model depth
+        # evenly spaced across model depth
         representative_layers = [0, 9, 18, 27]
 
     all_data = {}
@@ -272,7 +269,6 @@ def analyze_grassmann(
             print(f"    Warning: No weights found for {module_type}")
             continue
 
-        # Compute pairwise similarity matrix
         layer_indices = sorted(lora_weights.keys())
         n_actual = len(layer_indices)
 
@@ -299,13 +295,10 @@ def analyze_grassmann(
             layer_names = [f"L{l}" for l in layer_indices]
 
         if len(module_types) > 1:
-            # Insert module_type into filename
             output_path = output_path.parent / f"{output_path.stem}_{module_type}{output_path.suffix}"
 
-        # Plot heatmap
         plot_grassmann_heatmap(rep_matrix, layer_names, module_type, output_path)
 
-        # Store data
         all_data[module_type] = {
             "similarity_matrix": rep_matrix.tolist(),
             "layers": layer_names,
@@ -320,12 +313,15 @@ def analyze_cross_seed(
     module_types: list[str],
     output_path: Path,
 ) -> dict[str, Any]:
-    """
-    E3b: Cross-seed subspace similarity analysis.
+    """E3b: cross-seed subspace similarity.
 
-    Compare LoRA subspaces learned with different random seeds.
+    For each module, compares the two seeds' LoRA-A directions and produces the
+    layer-averaged similarity grid, per-layer top-k similarity (k = 1, 2, 4, 8),
+    and the full-subspace mean.
     """
     all_data = {}
+    grid_cap = 16  # how many top directions to show in the heatmap
+    top_ks = [1, 2, 4, 8]
 
     for module_type in module_types:
         print(f"  Processing {module_type}...")
@@ -336,55 +332,92 @@ def analyze_cross_seed(
             print(f"    Warning: Missing weights for {module_type}")
             continue
 
-        # Compute cross-seed similarity for each layer
         layer_indices = sorted(weights_1.keys())
-        similarities = []
+
+        per_layer: dict[str, dict[str, float]] = {}
+        grid_sum = None
+        n_grids = 0
 
         for layer_idx in layer_indices:
             if layer_idx not in weights_2:
                 continue
             A_1, _ = weights_1[layer_idx]
             A_2, _ = weights_2[layer_idx]
-            sim = compute_grassmann_similarity(A_1, A_2)
-            similarities.append((layer_idx, sim))
 
-        # Plot as bar chart
-        fig, ax = plt.subplots(figsize=(12, 6))
-        layers = [f"L{idx}" for idx, _ in similarities]
-        sims = [sim for _, sim in similarities]
+            grid = compute_similarity_grid(A_1, A_2)
+            r_eff = grid.shape[0]
 
-        bars = ax.bar(range(len(layers)), sims, color="steelblue")
-        ax.set_xlabel("Layer", fontsize=12)
-        ax.set_ylabel("Grassmann Similarity (Seed 1 vs Seed 2)", fontsize=12)
-        ax.set_title(
-            f"{module_type} - Cross-Seed Subspace Similarity (r=64)", fontsize=14
-        )
-        ax.set_xticks(range(len(layers)))
-        ax.set_xticklabels(layers, rotation=45, ha="right")
-        ax.set_ylim(0, 1.05)
+            # accumulate the top-left block for the averaged heatmap
+            cap = min(grid_cap, r_eff)
+            block = grid[:cap, :cap]
+            grid_sum = block if grid_sum is None else grid_sum + block
+            n_grids += 1
 
-        # Add value labels on bars
-        for bar, val in zip(bars, sims):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 0.02,
-                f"{val:.2f}",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
+            # diagonal entries are the top-k self-similarities
+            per_layer[f"L{layer_idx}"] = {
+                f"top{k}": float(grid[k - 1, k - 1])
+                for k in top_ks
+                if k <= r_eff
+            }
+            per_layer[f"L{layer_idx}"]["full"] = float(grid[-1, -1])
 
-        plt.tight_layout()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        print(f"Saved cross-seed plot to {output_path}")
-        plt.close()
+        if grid_sum is None:
+            print(f"    Warning: no overlapping layers for {module_type}")
+            continue
 
-        # Store data
-        all_data[module_type] = {
-            "similarities": {f"L{idx}": float(sim) for idx, sim in similarities},
-            "mean_similarity": float(np.mean(sims)),
-            "std_similarity": float(np.std(sims)),
+        avg_grid = grid_sum / n_grids
+
+        def _mean_over_layers(key: str) -> float:
+            vals = [d[key] for d in per_layer.values() if key in d]
+            return float(np.mean(vals)) if vals else float("nan")
+
+        # random-chance baseline for the top-k similarity is k/d
+        d_in = int(A_1.shape[1])
+        r_full = int(A_1.shape[0])
+        topk_means = {f"top{k}": _mean_over_layers(f"top{k}") for k in top_ks}
+        full_mean = _mean_over_layers("full")
+        baseline_per_k = {f"top{k}": k / d_in for k in top_ks}
+        signal_ratio = {
+            f"top{k}": (topk_means[f"top{k}"] / baseline_per_k[f"top{k}"])
+            if baseline_per_k[f"top{k}"] > 0 else float("nan")
+            for k in top_ks
         }
+
+        # Per-module filename so multiple module types don't overwrite.
+        if len(module_types) > 1:
+            module_output = (
+                output_path.parent
+                / f"{output_path.stem}_{module_type}{output_path.suffix}"
+            )
+        else:
+            module_output = output_path
+
+        plot_cross_seed(
+            avg_grid, per_layer, top_ks, baseline_per_k, module_type, module_output
+        )
+
+        all_data[module_type] = {
+            "per_layer": per_layer,
+            "topk_means": topk_means,
+            "random_baseline_per_k": baseline_per_k,
+            "signal_ratio_over_chance": signal_ratio,
+            "full_subspace_mean": full_mean,
+            "random_floor_full": float(r_full / d_in),
+            "avg_grid": avg_grid.tolist(),
+        }
+
+        print(
+            "    Mean top-1={top1:.3f} | top-2={top2:.3f} | top-4={top4:.3f} | "
+            "top-8={top8:.3f}".format(**topk_means)
+        )
+        print(
+            "    Signal vs chance: top-1={top1:.0f}x | top-2={top2:.0f}x | "
+            "top-4={top4:.0f}x | top-8={top8:.0f}x".format(**signal_ratio)
+        )
+        print(
+            f"    Full-subspace mean={full_mean:.3f} "
+            f"(full random floor r/d={r_full / d_in:.3f})"
+        )
 
     return all_data
 
@@ -397,12 +430,20 @@ def analyze_amplification(
     alpha: float = 128,
     r: int = 64,
 ) -> dict[str, Any]:
-    """
-    E3c: Amplification factor analysis.
+    """E3c: amplification factor analysis.
 
-    Computes ‖ΔW‖_F / ‖UᵀWVᵀ‖_F for each layer and module type.
+    Per layer and module, computes the amplification factor and the comparison
+    projections, then saves the JSON and plot.
     """
     all_data = {}
+
+    column_keys = [
+        "delta_norm",
+        "W_norm",
+        "proj_onto_delta_subspace",
+        "proj_onto_W_subspace",
+        "proj_onto_random_subspace",
+    ]
 
     for module_type in module_types:
         print(f"  Processing {module_type}...")
@@ -413,32 +454,74 @@ def analyze_amplification(
             continue
 
         factors = {}
+        rows = {}
         for layer_idx, (A, B) in lora_weights.items():
             base_W = get_base_weight(base_model, layer_idx, module_type)
             if base_W is None:
                 print(f"    Warning: No base weight for layer {layer_idx}")
                 continue
 
-            factor = compute_amplification_factor(A, B, base_W, alpha, r)
-            factors[f"layer_{layer_idx}"] = factor
+            row = compute_amplification_factor(A, B, base_W, alpha, r)
+            rows[f"layer_{layer_idx}"] = row
+            factors[f"layer_{layer_idx}"] = row["amplification"]
+
+        if not factors:
+            print(
+                f"    Warning: no base weights resolved for {module_type}; "
+                "skipping (check --base-model matches the trained model)."
+            )
+            continue
+
+        amp_values = list(factors.values())
+        column_means = {
+            key: float(np.mean([rows[layer][key] for layer in rows]))
+            for key in column_keys
+        }
+
+        # Average the top-k amplification sweep across layers.
+        k_values = sorted(
+            {int(k) for row in rows.values() for k in row["topk"]}
+        )
+        topk_amplification_means = {
+            str(k): float(np.mean([
+                rows[layer]["topk"][str(k)]["amplification"]
+                for layer in rows if str(k) in rows[layer]["topk"]
+            ]))
+            for k in k_values
+        }
 
         all_data[module_type] = {
             "factors": factors,
-            "mean": float(np.mean(list(factors.values()))),
-            "std": float(np.std(list(factors.values()))),
-            "min": float(min(factors.values())),
-            "max": float(max(factors.values())),
+            "mean": float(np.mean(amp_values)),
+            "std": float(np.std(amp_values)),
+            "min": float(min(amp_values)),
+            "max": float(max(amp_values)),
+            "table7_means": column_means,
+            "topk_amplification_means": topk_amplification_means,
+            "per_layer_rows": rows,
         }
 
-        # Print summary
-        print(f"    Mean amplification: {all_data[module_type]['mean']:.3f}")
+        print(f"    Mean amplification (full r={r}): {all_data[module_type]['mean']:.3f}")
         print(f"    Std: {all_data[module_type]['std']:.3f}")
+        print(
+            "    Mean ‖ΔW‖_F={delta_norm:.3f} | "
+            "‖UᵀWVᵀ‖_F (ΔW-subspace)={proj_onto_delta_subspace:.3f} | "
+            "(W-subspace)={proj_onto_W_subspace:.3f} | "
+            "(random)={proj_onto_random_subspace:.3f}".format(**column_means)
+        )
+        print(
+            "    Amplification by top-k: "
+            + " | ".join(
+                f"k={k}:{v:.2f}x" for k, v in topk_amplification_means.items()
+            )
+        )
 
-    # Save as JSON
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(all_data, f, indent=2)
     print(f"Saved amplification factors to {output_path}")
+
+    plot_amplification_table(all_data, output_path.with_suffix(".png"))
 
     return all_data
 

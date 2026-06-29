@@ -1,9 +1,4 @@
-"""Group's own LoRA backend — THIS IS WHERE YOU IMPLEMENT.
-
-You only need to fill in this file. The surrounding infrastructure (model
-loading, data pipeline, training loop, evaluation, sanity checks) is already
-wired up and will use your implementation as soon as ``backend: "custom"`` is
-set in the YAML config.
+"""Group's own LoRA backend.
 
 Contract (see ``backend.py`` for the formal definition):
 
@@ -33,7 +28,7 @@ Verification workflow:
     # Results parity: compare against the peft reference on the same seed
     # and same adapter weights.
 
-The paper you're reproducing: Hu et al. 2021, https://arxiv.org/abs/2106.09685
+The paper reproduced: Hu et al. 2021, https://arxiv.org/abs/2106.09685
 Relevant sections: §4.1 (method), §4.2 (target-module choice).
 """
 
@@ -162,7 +157,7 @@ def apply(model: nn.Module, config: LoraSetupConfig) -> nn.Module:
            `config.target_modules`, replace it with a `LinearWithLoRA`.
         3. Return the (now mutated) model.
 
-    Hint: use ``model.get_submodule(parent)`` + ``setattr`` to replace a
+    Use ``model.get_submodule(parent)`` + ``setattr`` to replace a
     named submodule.
     """
     model.requires_grad_(False)

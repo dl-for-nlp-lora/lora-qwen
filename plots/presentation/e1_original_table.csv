@@ -1,0 +1,6 @@
+Config,Targets,Rank,Alpha,Trainable,Base Acc,FT Acc,Delta
+E1a_q_proj,q,14,28,1605632,0.4716,0.6952,+0.2237
+E1b_v_proj,v,19,38,1634304,0.4716,0.6846,+0.2130
+E1c_qv_proj,N/A,,N/A,,0.4882,0.6876,+0.1994
+E1d_attention,N/A,,N/A,,0.4882,0.6975,+0.2092
+E1e_all_linear,N/A,,N/A,,0.4882,0.6998,+0.2115

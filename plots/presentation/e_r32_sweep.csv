@@ -1,0 +1,6 @@
+Config,Targets,Rank,Trainable,Base Acc,FT Acc,Delta
+E_r32_all_linear,q+k+v+o+gate+up+down,32,34865152,0.4716,0.6937,+0.2221
+E_r32_attention,q+k+v+o,32,12845056,0.4882,0.7036,+0.2153
+E_r32_q_proj,q,32,3670016,0.4701,0.7119,+0.2418
+E_r32_qv_proj,q+v,32,6422528,0.4701,0.6967,+0.2267
+E_r32_v_proj,v,32,2752512,0.4701,0.6861,+0.2161

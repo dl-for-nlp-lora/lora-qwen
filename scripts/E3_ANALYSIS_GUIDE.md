@@ -1,205 +1,104 @@
-# E3 Subspace Analysis Guide
+# E3 — subspace analyses
 
-This guide explains how to run the E3 subspace analyses from the LoRA paper (Hu et al. 2021, §7.2-7.3) using your Qwen3-1.7B-Base checkpoints.
+E3 looks *inside* the trained LoRA adapters to ask what they actually learned,
+reproducing the subspace analyses from Hu et al. 2021 (§7.2–7.3). It is purely
+post-hoc on existing `adapter.pt` checkpoints — no extra training, except that
+E3b needs a second adapter trained with a different seed.
 
-## Prerequisites
+All analyses are driven by [`analyze_subspace.py`](analyze_subspace.py) (figure
+rendering in [`subspace_plots.py`](subspace_plots.py)). Results for the Qwen2.5
+checkpoints live under [`../results/E3/`](../results/E3/):
 
-Make sure you have the analysis dependencies installed:
-
-```bash
-pip install -e ".[dev]"
+```
+results/E3/
+  e3a_output/   inter-layer + rank-vs-rank Grassmann (heatmaps + JSON)
+  e3b/          cross-seed similarity (JSON + plots)
+  e3c/          amplification factor for r=4 and r=64 (JSON + plots)
 ```
 
-This installs `matplotlib` and `scipy` which are required for the analysis scripts.
+The three analyses share one idea: the LoRA update `ΔW = (α/r)·BA` only spans a
+tiny `r`-dimensional **subspace**. Each analysis probes that subspace from a
+different angle. Subspaces are compared with **principal angles**: the similarity
+`φ = mean(cos²θ_k) ∈ [0, 1]` (1 = identical subspace, 0 = orthogonal), which is
+invariant to how `A` is rotated/reordered.
 
-## Fixed Issues (Latest Update)
+## Common arguments
 
-The script has been updated to fix several issues:
+```
+--checkpoint-dir     directory holding adapter.pt
+--checkpoint-dir-2   second adapter (cross-seed only)
+--analysis           grassmann | cross-seed | amplification
+--module-types       e.g. q_proj v_proj   (default: q_proj v_proj)
+--output             PNG for plots, JSON for data
+--base-model         base weights for amplification (e.g. Qwen/Qwen2.5-1.5B)
+--alpha --rank       scaling for the amplification ΔW reconstruction
+```
 
-1. **BFloat16 compatibility**: Automatically converts BFloat16 checkpoints to float32 for scipy compatibility
-2. **Filename overwriting**: When analyzing multiple module types, each gets its own output file (e.g., `E3a_q_proj.png`, `E3a_v_proj.png`)
-3. **Colormap**: Updated to grey-red-purple diverging colormap matching the paper's Fig. 3
-4. **Cross-rank analysis**: New `cross-rank` mode to compare different ranks (r=8 vs r=64) as shown in paper Fig. 3
+## E3a — inter-layer Grassmann similarity (paper Fig. 3)
 
-## E3a: Cross-Rank Subspace Similarity (Paper Fig. 3)
-
-This analysis compares the LoRA subspaces learned at different ranks (e.g., r=8 vs r=64) to show whether low-rank and high-rank adapters learn similar subspaces.
-
-### Command
+Do different layers learn the same correction, or specialize? Computes the
+pairwise `φ` between the per-layer `A` subspaces.
 
 ```bash
 python scripts/analyze_subspace.py \
-  --checkpoint-dir checkpoints/E2_r64_attention \
-  --checkpoint-dir-2 checkpoints/E2_r2_attention \
-  --analysis cross-rank \
-  --module-types q_proj v_proj \
-  --output results/E3/E3a_cross_rank_r2_vs_r32.png \
-  --rank-low 2 --rank-high 32
-```
-
-**Note:** Adjust the checkpoint paths and rank values based on your available checkpoints. The script expects:
-- `--checkpoint-dir`: High-rank checkpoint (e.g., r=32 or r=64)
-- `--checkpoint-dir-2`: Low-rank checkpoint (e.g., r=2 or r=8)
-
-### Output
-
-- **PNG file**: Heatmap showing Grassmann similarity between low-rank and high-rank A matrices for each layer
-- **JSON file**: Raw similarity matrices and per-layer statistics
-
-### Interpretation
-
-High similarity (>0.8) indicates that even low-rank LoRA captures the same subspace directions as high-rank LoRA, supporting the paper's finding that the optimal subspace is low-dimensional.
-
-## E3a: Layer-to-Layer Grassmann Similarity (Within Same Rank)
-
-This analysis shows the similarity between LoRA subspaces across different layers within the same checkpoint.
-
-### Command
-
-```bash
-python scripts/analyze_subspace.py \
-  --checkpoint-dir checkpoints/E1d_attention \
+  --checkpoint-dir checkpoints/headroom/qwen25_1.5b/e2_qv_r64 \
   --analysis grassmann \
-  --module-types q_proj v_proj k_proj o_proj \
-  --output results/E3/E3a_layer_similarity.png
+  --module-types q_proj v_proj \
+  --output results/E3/e3a_output/E3a_grassmann.png
 ```
 
-### Output
+**Reading.** Off-diagonal values near 0 (diagonal = 1) mean each layer's
+subspace is almost orthogonal to the others — the adaptation is layer-specific,
+not a redundant copy.
 
-When analyzing multiple module types, the script automatically creates separate files:
-- `E3a_layer_similarity_q_proj.png`
-- `E3a_layer_similarity_v_proj.png`
-- `E3a_layer_similarity_k_proj.png`
-- `E3a_layer_similarity_o_proj.png`
+## E3b — cross-seed similarity (paper Fig. 4)
 
-Each file shows a 4×4 heatmap of the representative layers (0, 9, 18, 27).
-
-## E3b: Cross-Seed Subspace Similarity (Paper Fig. 4)
-
-This analysis compares LoRA subspaces from two independent training runs with different random seeds to assess convergence consistency.
-
-### Command
+Is the learned subspace a real property of the task or an artifact of one random
+init? Trains the *same* config twice with different seeds and compares the two
+subspaces layer by layer, against the random-chance baseline `k/d`.
 
 ```bash
 python scripts/analyze_subspace.py \
-  --checkpoint-dir checkpoints/E2_r64_attention \
-  --checkpoint-dir-2 checkpoints/E2_r64_attention_seed2 \
+  --checkpoint-dir   checkpoints/headroom/qwen25_1.5b/e2_qv_r64 \
+  --checkpoint-dir-2 checkpoints/headroom/qwen25_1.5b/e2_qv_r64_seed2 \
   --analysis cross-seed \
   --module-types q_proj v_proj \
-  --output results/E3/E3b_cross_seed.png
+  --output results/E3/e3b/e3b_cross_seed.png
 ```
 
-### Output
+**Reading.** The top-k directions sit clearly above the `k/d` chance line: the
+two seeds rediscover the same leading directions, so the subspace is a stable,
+reproducible feature of the task rather than noise. (This is the one analysis
+that requires a second training run — a second-seed adapter.)
 
-- **PNG file**: Bar chart showing Grassmann similarity for each layer between the two seeds
-- **JSON file**: Per-layer similarities, mean, and standard deviation
+## E3c — amplification factor (paper Tab. 7)
 
-### Interpretation
-
-High cross-seed similarity suggests that LoRA converges to similar solutions regardless of initialization, indicating a well-behaved optimization landscape.
-
-## E3c: Amplification Factor Analysis (Paper Tab. 7)
-
-This analysis computes the ratio of the LoRA update norm to the base weight norm projected onto the top-r singular subspace.
-
-### Command
+Does LoRA boost directions the base model already emphasizes, or ones it had
+suppressed? Compares `‖ΔW‖_F` against the base weight projected onto its own
+top-`r` singular subspace, `‖UᵀWVᵀ‖_F`.
 
 ```bash
 python scripts/analyze_subspace.py \
-  --checkpoint-dir checkpoints/E2_r64_attention \
+  --checkpoint-dir checkpoints/headroom/qwen25_1.5b/e2_qv_r64 \
   --analysis amplification \
   --module-types q_proj v_proj \
-  --base-model Qwen/Qwen3-1.7B-Base \
-  --alpha 64 --rank 32 \
-  --output results/E3/E3c_amplification_r32.json
+  --base-model Qwen/Qwen2.5-1.5B \
+  --alpha 128 --rank 64 \
+  --output results/E3/e3c/e3c_amplification_r64.json
 ```
 
-### Output
+**Reading (Qwen2.5 results).** The amplification factor is large at low rank and
+shrinks as rank grows — mean `≈4.5×` at r=4 vs `≈1.0×` at r=64. The small-rank
+adapter concentrates its update on a few task-relevant directions that the base
+model under-weights; the high-rank adapter spreads the same total change over
+many directions, so per-direction amplification falls toward 1. This matches the
+paper's finding that LoRA amplifies task-specific, previously-suppressed
+directions, and dovetails with E2 (a tiny rank already captures the useful
+subspace).
 
-- **JSON file**: Amplification factors for each layer and module type, plus summary statistics (mean, std, min, max)
+## Notes
 
-### Interpretation
-
-Amplification factors >1 indicate that LoRA updates are larger than what would be expected from the top singular components of the base weights, suggesting LoRA learns beyond just scaling existing directions.
-
-## Available Checkpoints
-
-Your available checkpoints for E3 analysis:
-
-### E1 Checkpoints (different module configurations)
-- `checkpoints/E1a_q_proj` (r=14)
-- `checkpoints/E1b_v_proj` (r=19)
-- `checkpoints/E1c_qv_proj` (r=8)
-- `checkpoints/E1d_attention` (r=4, all attention)
-- `checkpoints/E1e_all_linear` (r=2, all 7 linear layers)
-
-### E2 Checkpoints (rank sweep, attention-only)
-- `checkpoints/E2_r1_attention` (r=1)
-- `checkpoints/E2_r2_attention` (r=2)
-- `checkpoints/E2_r8_attention` (r=8)
-- `checkpoints/E2_r16_attention` (r=16)
-- `checkpoints/E2_r32_attention` (r=32)
-- `checkpoints/E2_r64_attention` (r=64)
-- `checkpoints/E2_r64_attention_seed2` (r=64, second seed)
-
-### Recommended E3 Analyses
-
-1. **Cross-rank (E3a)**: Compare r=2 vs r=32 or r=2 vs r=64
-   ```bash
-   python scripts/analyze_subspace.py \
-     --checkpoint-dir checkpoints/E2_r32_attention \
-     --checkpoint-dir-2 checkpoints/E2_r2_attention \
-     --analysis cross-rank \
-     --module-types q_proj v_proj \
-     --output results/E3/E3a_cross_rank_r2_vs_r32.png \
-     --rank-low 2 --rank-high 32
-   ```
-
-2. **Cross-seed (E3b)**: Compare two r=64 seeds
-   ```bash
-   python scripts/analyze_subspace.py \
-     --checkpoint-dir checkpoints/E2_r64_attention \
-     --checkpoint-dir-2 checkpoints/E2_r64_attention_seed2 \
-     --analysis cross-seed \
-     --module-types q_proj v_proj \
-     --output results/E3/E3b_cross_seed.png
-   ```
-
-3. **Amplification (E3c)**: Analyze r=32 checkpoint
-   ```bash
-   python scripts/analyze_subspace.py \
-     --checkpoint-dir checkpoints/E2_r32_attention \
-     --analysis amplification \
-     --module-types q_proj v_proj \
-     --base-model Qwen/Qwen3-1.7B-Base \
-     --alpha 64 --rank 32 \
-     --output results/E3/E3c_amplification_r32.json
-   ```
-
-## Troubleshooting
-
-### Error: "Got unsupported ScalarType BFloat16"
-
-This should now be automatically fixed. The script converts BFloat16 checkpoints to float32 on load.
-
-### Error: "Adapter not found"
-
-The script expects `adapter.pt` in each checkpoint directory. If your checkpoints use a different filename (e.g., `adapter_model.safetensors`), you'll need to either:
-1. Rename the file to `adapter.pt`
-2. Modify the `load_adapter_weights()` function in the script
-
-### Out of memory when loading base model
-
-The amplification analysis loads the full base model in float32. If you run out of memory:
-1. Close other GPU applications
-2. Use a machine with more RAM (CPU loading, not GPU)
-3. The base model loading is CPU-only, so GPU memory shouldn't be a bottleneck
-
-## Colormap
-
-The script uses a custom grey-red-purple diverging colormap that matches the LoRA paper's Fig. 3:
-- **Grey** (#808080): Low similarity (0.0)
-- **Red** (#FF6B6B): Mid similarity (0.5)
-- **Dark Purple** (#4B0082): High similarity (1.0)
-
-This replaced the default "viridis" colormap to better match the paper's visual style.
+- Adapters are expected as `adapter.pt` (the custom backend's format). bf16
+  checkpoints are auto-cast to fp32 for the SVD / principal-angle math.
+- The amplification analysis loads the full base model in fp32 on CPU; it needs
+  host RAM, not GPU memory.

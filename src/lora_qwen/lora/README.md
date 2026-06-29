@@ -1,10 +1,31 @@
-# LoRA backend — implementation guide
+# LoRA backend
 
-This is the only subsystem you need to touch. Everything else (model loading, data pipeline, training orchestration, evaluation) is already wired up and will call into whatever backend you build here.
+This subpackage owns LoRA injection. Everything else (model loading, data,
+training, evaluation) is backend-agnostic and goes through the three public
+functions in [`__init__.py`](__init__.py):
+
+```python
+apply_lora(model, config)                    # attach adapters, freeze base
+save_adapter(model, save_dir, config)        # persist trained adapter
+load_adapter(base_model, save_dir, config)   # restore for evaluation
+```
+
+The dispatcher in [`apply.py`](apply.py) selects the implementation from
+`config.backend`. Two backends ship and are fully interchangeable per config:
+
+| `backend:` | Module | Role |
+| --- | --- | --- |
+| `peft` | [`peft_backend.py`](peft_backend.py) | HuggingFace `peft`, reference implementation |
+| `custom` | [`custom_backend.py`](custom_backend.py) | in-house from-scratch LoRA |
+
+The two are verified equivalent: the patched model passes the identity check at
+init, the custom backend tracks the `peft` loss trajectory, and downstream GSM8K
+accuracy matches within bf16 noise.
 
 ## The contract
 
-A backend is a Python module that exposes three functions:
+A backend is a module exposing three functions; the formal Protocol and a
+runtime validator live in [`backend.py`](backend.py):
 
 ```python
 def apply(model: nn.Module, config: LoraSetupConfig) -> nn.Module: ...
@@ -12,88 +33,58 @@ def save(model: nn.Module, save_dir: str | Path) -> None: ...
 def load(base_model: nn.Module, save_dir: str | Path, config: LoraSetupConfig) -> nn.Module: ...
 ```
 
-See [`backend.py`](backend.py) for the formal Protocol and a runtime validator that the dispatcher uses.
+Three semantic invariants any backend must satisfy:
 
-The three semantic invariants:
+1. **Structure.** After `apply`, every base parameter is frozen and only the
+   LoRA parameters have `requires_grad=True`.
+2. **Identity at init.** The patched model's logits equal the base model's,
+   because `B = 0` initially ⇒ `ΔW·x = (α/r)·BA·x = 0`. This is the central LoRA
+   correctness test; `scripts/smoke_setup.py` checks it via
+   `lora_qwen.sanity.compare_logits`.
+3. **Save/load round-trip.** `load(fresh_base, save_dir, config)` reproduces a
+   model numerically equivalent to the trained one that was saved.
 
-1. **Structure:** after `apply(base_model, config)`, every base parameter is frozen and only your LoRA parameters have `requires_grad=True`.
-2. **Identity at init:** the patched model's logits must equal the base model's logits on any input, because `B=0` initially ⇒ `ΔW·x = BA·x = 0`. This is the central LoRA correctness test. The smoke script checks it automatically.
-3. **Save/load round-trip:** `load(fresh_base, save_dir, config)` must produce a model numerically equivalent to the trained model that was saved.
+## How the custom backend works
 
-## Your task
+[`custom_backend.py`](custom_backend.py) is a compact reference for the LoRA
+method (Hu et al. 2021, §4.1):
 
-Fill in [`custom_backend.py`](custom_backend.py). The file is already scaffolded with `NotImplementedError` markers and docstrings. You are implementing:
+- **`LoRALayer`** — the low-rank update `(α/r) · B(A(x))`. `A` is Kaiming-uniform
+  (drawn in fp32, then cast to the param dtype to preserve entropy under bf16),
+  `B` is zero-initialized, with dropout on the input.
+- **`LinearWithLoRA`** — wraps a frozen `nn.Linear` and adds the parallel
+  `LoRALayer`; forward returns `base(x) + lora(x)`. LoRA params inherit the
+  wrapped layer's device/dtype.
+- **`apply`** — freezes the model, walks `named_modules()`, and replaces every
+  `nn.Linear` whose leaf name is in `config.target_modules` with a
+  `LinearWithLoRA`.
+- **`save`** — dumps only the trainable tensors (selected by `requires_grad`, not
+  a name pattern) to `adapter.pt` (a few MB; base weights are never saved).
+- **`load`** — re-runs `apply` to rebuild the structure, then loads `adapter.pt`
+  with `strict=False`.
 
-| Class / function     | What it does                                                        |
-| -------------------- | ------------------------------------------------------------------- |
-| `LoRALayer`          | Low-rank update `(α/r) · B(A(x))`, Kaiming-A, zero-B, dropout       |
-| `LinearWithLoRA`     | Frozen base `nn.Linear` + parallel `LoRALayer`; forward sums them   |
-| `apply`              | Walk the model, replace target Linears with `LinearWithLoRA`        |
-| `save`               | Dump the trainable (LoRA) tensors only                              |
-| `load`               | Re-apply structure, then load saved tensors                         |
+## Validating a backend
 
-You do NOT need to touch:
-
-- Model loading (`lora_qwen/model.py`)
-- Data pipeline (`lora_qwen/data/`)
-- Training loop (`lora_qwen/training/`)
-- Evaluation (`lora_qwen/evaluation/`)
-- Any script under `scripts/`
-
-## How to run your implementation
-
-Point a config at your backend (copy an existing one and change `backend:`):
-
-```bash
-cp configs/all_linear.yaml configs/all_linear_custom.yaml
-# edit the copy: set   backend: "custom"
-```
-
-Then run the existing scripts against it:
+Point a config at a backend (copy one and set `backend:` accordingly), then run:
 
 ```bash
-# Step 1: injection correctness (identity check must pass)
-python scripts/smoke_setup.py --config configs/all_linear_custom.yaml
+# 1. Injection correctness — identity check must pass
+python scripts/smoke_setup.py --config configs/all_linear.yaml
 
-# Step 2: a short FT must make the loss decrease
-python scripts/smoke_ft.py --lora configs/all_linear_custom.yaml
-
-# Step 3: GSM8K base-vs-FT must show a non-zero delta
-python scripts/eval_gsm8k.py --lora-config configs/all_linear_custom.yaml \
-    --adapter-dir checkpoints/smoke_ft_custom --num-problems 20
-```
-
-If step 1 fails, your injection is wrong (not the LoRA math). If step 1 passes but step 2's loss doesn't decrease, your gradient flow is wrong (typically an autograd detach somewhere or wrong `requires_grad` flags). If step 2 passes but step 3 gives the same accuracy as base, your `save`/`load` probably isn't restoring trained weights.
-
-## Comparing against the peft reference
-
-To be confident your impl is equivalent to the peft reference, train both with **the same seed, same data order, same hyperparameters, same adapter config** and compare the final loss trajectory. Small numerical differences are expected (different init RNG, possibly different epsilon in Adam eps or dropout masks); large drifts (>0.1 in final loss) point at a bug.
-
-Example:
-
-```bash
-# Reference run
+# 2. End-to-end training — loss must decrease
 python scripts/smoke_ft.py --lora configs/all_linear.yaml
-cp checkpoints/smoke_ft/adapter_model.safetensors /tmp/peft_adapter.st
 
-# Your run (same seed set in configs/train/smoke.yaml)
-python scripts/smoke_ft.py --lora configs/all_linear_custom.yaml
+# 3. GSM8K base-vs-FT — must show a non-zero delta
+python scripts/eval_gsm8k.py --lora-config configs/all_linear.yaml \
+    --adapter-dir checkpoints/smoke_ft --num-problems 20
 ```
+
+If step 1 fails the injection is wrong (not the LoRA math); if step 1 passes but
+step 2's loss is flat the gradient flow is wrong (a stray detach or wrong
+`requires_grad`); if step 2 passes but step 3 matches the base, `save`/`load`
+isn't restoring trained weights.
 
 ## Paper reference
 
-Hu et al. 2021, LoRA: Low-Rank Adaptation of Large Language Models — <https://arxiv.org/abs/2106.09685>
-
-- §4.1: the method (`ΔW = BA`, init `A` Kaiming, init `B` zero)
-- §4.2: which modules to target (the experiment we're reproducing)
-
-## Architecture one-liner
-
-```
-scripts / training / evaluation  --->  apply_lora / save_adapter / load_adapter
-                                            |
-                                            v
-                                       dispatcher
-                                       /        \
-                                 peft_backend    custom_backend  <-- YOU
-```
+Hu et al. 2021, *LoRA: Low-Rank Adaptation of Large Language Models* —
+<https://arxiv.org/abs/2106.09685> (§4.1 method, §4.2 target-module choice).

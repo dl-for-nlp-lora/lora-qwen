@@ -1,12 +1,17 @@
-# Qwen3 Original Results - Presentation Slides 5-10
+# Qwen3 original results — presentation slides 5–10
 
 ## Overview
 
-This folder contains presentation slides and data for the **original Qwen3-1.7B experiments** (before methodology corrections). These results use:
+This folder contains the presentation slides and data for the **first-cohort
+Qwen3-1.7B experiments** (before the later methodology corrections). They are
+kept for the LoRA-reproduction part of the talk (E1/E2 ablations); the
+methodology-fixed numbers live in
+[`../../analysis/headroom_summary.md`](../../analysis/headroom_summary.md). This
+cohort used:
 - **Dataset:** MetaMathQA (30k examples)
-- **Token limit:** 256 tokens (later discovered to be truncating outputs)
+- **Token limit:** 256 tokens (later found to truncate some outputs)
 - **Evaluation:** GSM8K test (1,319 problems)
-- **Models:** Qwen3-1.7B-Base
+- **Model:** Qwen3-1.7B-Base
 
 ---
 
@@ -126,14 +131,14 @@ This folder contains presentation slides and data for the **original Qwen3-1.7B 
 | `e_r32_sweep.csv` | R32 sweep results |
 | `e2_attention_rank_sweep.csv` | E2 attention-only subset |
 
-### Raw Results Location
+### Raw results location
 
-All results from: `D:\DNLP\lora-qwen\results\`
-- `E1/` - Original ~1.6M budget
-- `E1_rebalanced_2.6m_params/` - ~2.6M budget
-- `E_4.4m_params/` - ~4.4M budget
-- `E2/` - Rank sweep (all configs)
-- `E_r32_sweep/` - Fixed rank=32 sweep
+All results from the repo's `results/` directory:
+- `E1/` — original ~1.6M budget
+- `E1_rebalanced_2.6m_params/` — ~2.6M budget
+- `E_4.4m_params/` — ~4.4M budget
+- `E2/` — rank sweep (all configs)
+- `E_r32_sweep/` — fixed rank=32 sweep
 
 ---
 
@@ -182,47 +187,32 @@ All results from: `D:\DNLP\lora-qwen\results\`
 
 ---
 
-## How to Regenerate
+## How to regenerate
 
 ```bash
-cd D:\DNLP\lora-qwen
-
-# 1. Extract data from JSON results
-python plots/presentation/extract_qwen3_results.py
-
-# 2. Generate all plots
-python plots/presentation/plot_qwen3_original.py
+# from the repo root
+python plots/presentation/extract_qwen3_results.py   # 1. extract data from JSON results
+python plots/presentation/plot_qwen3_original.py     # 2. generate all plots
 ```
 
-Output files saved to: `plots/presentation/`
+Output files are saved to `plots/presentation/`.
 
 ---
 
-## Presentation Order
+## Presentation order
 
 **Recommended slide sequence:**
-1. **Slide 5** - Experiment design overview (what we replicated vs didn't)
-2. **Slide 6** - E1 table (original ~1.6M budget results)
-3. **Slide 7** - E2 rank sweep (all configurations)
-4. **Slide 8** - Our contribution (all-linear fine-tuning)
-5. **Slide 9** - Budget ablation (how params affect learning)
-6. **Slide 10** - R32 comparison (higher budget impact)
-
-**Time allocation:**
-- Slide 5: 1 min (overview)
-- Slide 6: 1 min (E1 results)
-- Slide 7: 1.5 min (E2 results)
-- Slide 8: 1.5 min (our contribution)
-- Slide 9: 1 min (budget ablation)
-- Slide 10: 1 min (R32 comparison)
-
-**Total:** ~7 minutes for this section
+1. **Slide 5** — experiment design overview (what we replicated vs didn't)
+2. **Slide 6** — E1 table (original ~1.6M budget results)
+3. **Slide 7** — E2 rank sweep (all configurations)
+4. **Slide 8** — all-linear fine-tuning (our extension)
+5. **Slide 9** — budget ablation (how params affect learning)
+6. **Slide 10** — R32 comparison (higher budget impact)
 
 ---
 
-## Contact
+## Related docs
 
-For questions about these results or methodology, refer to:
-- `lora-qwen/README.md` - Project overview
-- `lora-qwen/EXPERIMENTS.md` - Full experimental plan
-- `lora-qwen/analysis/headroom_summary.md` - Corrected methodology results
+- [`../../README.md`](../../README.md) — project overview
+- [`../../EXPERIMENTS.md`](../../EXPERIMENTS.md) — full experimental plan
+- [`../../analysis/headroom_summary.md`](../../analysis/headroom_summary.md) — methodology-fixed results

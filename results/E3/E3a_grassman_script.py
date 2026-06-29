@@ -25,9 +25,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 OUT_DIR = SCRIPT_DIR / "e3a_output"
 OUT_DIR.mkdir(exist_ok=True)
 
-CKPT_DIR = Path(r"C:\Users\HP\Downloads\checkpoints")
-R8_PATH  = CKPT_DIR / "E2_r8_qv"  / "adapter.pt"
-R64_PATH = CKPT_DIR / "E2_r64_qv" / "adapter.pt"
+CKPT_DIR = Path(r"C:\Users\HP\Downloads\checkpoints-export\headroom\qwen25_1.5b")
+R8_PATH  = CKPT_DIR / "e2_qv_r8"  / "adapter.pt"
+R64_PATH = CKPT_DIR / "e2_qv_r64" / "adapter.pt"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 LAYERS  = [0, 9, 18, 27]           # 4 representative layers (of 28 total)

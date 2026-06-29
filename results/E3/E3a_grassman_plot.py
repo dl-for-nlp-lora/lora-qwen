@@ -3,8 +3,8 @@
 For each module (q_proj, v_proj) and each of the 4 layers, produces a
 4-panel figure matching the paper's Fig. 3:
 
-    Panel 1: full i×j grid  (i=1..8, j=1..64)   ΔW_q
-    Panel 2: full i×j grid  (i=1..8, j=1..64)   ΔW_v
+    Panel 1: full ixj grid  (i=1..8, j=1..64)   ΔW_q
+    Panel 2: full ixj grid  (i=1..8, j=1..64)   ΔW_v
     Panel 3: zoom lower-left (i=1..8, j=1..8)   ΔW_q
     Panel 4: zoom lower-left (i=1..8, j=1..8)   ΔW_v
 
@@ -121,7 +121,7 @@ def add_heatmap(ax, data_2d: np.ndarray, title: str,
 # L9 is the best representative layer: strongest φ(1,1) signal for both modules,
 # mid-network position (9/28 ≈ layer 32/96 in GPT-3 terms).
 # A dedicated high-res version is also saved as E3a_fig3_PRESENTATION.png.
-PRESENTATION_LAYER = "L9"
+PRESENTATION_LAYER = "L27"
 
 def _make_four_panel(data_q, data_v, layer, suptitle, vmax=None):
     """Build and return a 4-panel Fig-3-style figure for one layer."""
@@ -134,7 +134,7 @@ def _make_four_panel(data_q, data_v, layer, suptitle, vmax=None):
 
     if vmax is None:
         # compute vmax from unmasked data so both panel sets share the same scale
-        vmax = 0.5
+        vmax = 1.0
 
     fig, axes = plt.subplots(1, 4, figsize=(14, 3.5))
     fig.suptitle(suptitle, fontsize=12, y=1.02)
@@ -159,7 +159,7 @@ def plot_per_layer(data_q: dict, data_v: dict) -> None:
 
     for layer in layers:
         title = (
-            rf"$\phi(A_{{r=8}}, A_{{r=64}}, i, j)$ — {layer}  (Qwen3-1.7B)"
+            rf"$\phi(A_{{r=8}}, A_{{r=64}}, i, j)$ — {layer}  (Qwen2.5-1.5B)"
             + (" ← paper-comparison layer" if layer == PRESENTATION_LAYER else "")
         )
         fig = _make_four_panel(data_q, data_v, layer, title)
@@ -171,7 +171,7 @@ def plot_per_layer(data_q: dict, data_v: dict) -> None:
     # Dedicated cleaner presentation version of the best layer
     pres_title = (
         rf"$\phi(A_{{r=8}}, A_{{r=64}}, i, j)$  —  layer {PRESENTATION_LAYER}  "
-        r"(Qwen3-1.7B,  $q$+$v$ target,  r=8 vs r=64)"
+        r"(Qwen2.5-1.5B,  $q$+$v$ target,  r=8 vs r=64)"
     )
     fig = _make_four_panel(data_q, data_v, PRESENTATION_LAYER, pres_title)
     out_path = OUT_DIR / "E3a_fig3_PRESENTATION.png"
@@ -239,7 +239,10 @@ def plot_full_grid_per_module(data_q: dict, data_v: dict) -> None:
             fontsize=12, y=1.02,
         )
 
-        vmax = max(np.array(data["per_layer"][l]).max() for l in layers)
+        vmax = max(
+            max(np.array(data_q["per_layer"][l]).max() for l in layers),
+            max(np.array(data_v["per_layer"][l]).max() for l in layers),
+        )
 
         im_handle = None
         for ax, layer in zip(axes, layers):

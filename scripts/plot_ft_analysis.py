@@ -135,7 +135,13 @@ def plot_categories() -> None:
     labels = [MODELS[m] for m in models]
     x = np.arange(len(models))
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=False)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+    # Shared y-scale so the two panels are directly comparable in bar height
+    # (corrections dwarf regressions; on independent axes that contrast is lost).
+    y_top = max(
+        max(allc[m]["n_corrections"] for m in models),
+        max(allc[m]["n_regressions"] for m in models),
+    ) * 1.12
 
     # corrections (stacked)
     bottom = np.zeros(len(models))
@@ -176,6 +182,7 @@ def plot_categories() -> None:
     ax2.set_title("Regressions — base ✓ → FT ✗ (what FT breaks)")
     ax2.legend(fontsize=8, loc="upper right")
     ax2.grid(axis="y", alpha=0.3)
+    ax1.set_ylim(0, y_top)
 
     fig.suptitle("Where the fine-tuning effect comes from — by mechanism, per model",
                  fontsize=13)
